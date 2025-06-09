@@ -1,6 +1,7 @@
 import esbuild from "esbuild";
 import process from "process";
 import builtins from 'builtin-modules'
+import fs from 'fs';
 
 const banner =
 `/*
@@ -10,6 +11,15 @@ if you want to view the source, please visit the github repository of this plugi
 `;
 
 const prod = (process.argv[2] === 'production');
+
+// Ensure dist directory exists
+if (!fs.existsSync('dist')) {
+    fs.mkdirSync('dist');
+}
+
+// Copy static files
+fs.copyFileSync('styles.css', 'dist/styles.css');
+fs.copyFileSync('manifest.json', 'dist/manifest.json');
 
 esbuild.build({
     banner: {
@@ -39,5 +49,5 @@ esbuild.build({
     logLevel: "info",
     sourcemap: prod ? false : 'inline',
     treeShaking: true,
-    outfile: 'main.js',
+    outdir: 'dist',
 }).catch(() => process.exit(1));
