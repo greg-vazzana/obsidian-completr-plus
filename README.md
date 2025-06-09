@@ -1,7 +1,7 @@
-# Completr
+# Completr Plus
 
-[![](https://img.shields.io/github/v/release/tth05/obsidian-completr?style=flat-square)](https://github.com/tth05/obsidian-completr/releases)
-![](https://img.shields.io/github/downloads/tth05/obsidian-completr/total?style=flat-square)
+[![](https://img.shields.io/github/v/release/vazzang/obsidian-completr-plus?style=flat-square)](https://github.com/vazzang/obsidian-completr-plus/releases)
+![](https://img.shields.io/github/downloads/vazzang/obsidian-completr-plus/total?style=flat-square)
 
 This plugin provides advanced auto-completion functionality for obsidian. Legacy editor not supported.
 
@@ -29,7 +29,7 @@ Browse the community plugins list and search for `Completr`.
 ### Manually
 
 - Download `main.js, styles.css` and `manifest.json` from a release of your choice
-- Copy the three files to your vault `VaultFolder/.obsidian/plugins/obsidian-completr/`
+- Copy the three files to your vault `VaultFolder/.obsidian/plugins/obsidian-completr-plus/`
 
 ### After installation
 
@@ -40,13 +40,13 @@ Browse the community plugins list and search for `Completr`.
 
 ### Blacklist
 
-- You can blacklist any suggestion by adding it to the `.obsidian/plugins/obsidian-completr/blacklisted_suggestions.txt`
+- You can blacklist any suggestion by adding it to the `.obsidian/plugins/obsidian-completr-plus/blacklisted_suggestions.txt`
   file
 - Alternatively, you can use the hotkey to blacklist the currently selected suggestion (Default `Shift+D`)
 
 ### LaTeX commands
 
-- All default LaTeX commands can be found in the `.obsidian/plugins/obsidian-completr/latex_commands.json` file
+- All default LaTeX commands can be found in the `.obsidian/plugins/obsidian-completr-plus/latex_commands.json` file
 - You can add, remove or modify commands by editing this file
 - Replacement syntax
     - `#` is a placeholder for snippets
