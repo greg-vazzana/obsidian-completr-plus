@@ -223,7 +223,26 @@ export default class CompletrSettingsTab extends PluginSettingTab {
                             .setButtonText("Scan")
                             .setCta(),
                         async () => {
-                            await Scanner.scanFiles(this.plugin.settings, this.plugin.app.vault.getMarkdownFiles());
+                            try {
+                                const files = this.plugin.app.vault.getMarkdownFiles();
+                                const notice = new Notice(`Scanning ${files.length} files...`, 0);
+                                let scannedCount = 0;
+                                
+                                // Process files in batches to show progress
+                                const batchSize = 50;
+                                for (let i = 0; i < files.length; i += batchSize) {
+                                    const batch = files.slice(i, i + batchSize);
+                                    await Scanner.scanFiles(this.plugin.settings, batch);
+                                    scannedCount += batch.length;
+                                    notice.setMessage(`Scanning files... ${scannedCount}/${files.length}`);
+                                }
+                                
+                                notice.hide();
+                                new Notice(`Successfully scanned ${files.length} files!`);
+                            } catch (error) {
+                                console.error('Error scanning files:', error);
+                                new Notice('Error scanning files. Check console for details.');
+                            }
                         },
                     ).open();
                 }))
