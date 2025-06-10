@@ -3,7 +3,7 @@ import SnippetManager from "./snippet_manager";
 import SuggestionPopup, { SelectionDirection } from "./popup";
 import { CompletrSettings, DEFAULT_SETTINGS } from "./settings";
 import { WordList } from "./provider/word_list_provider";
-import { FileScanner } from "./provider/scanner_provider";
+import { Scanner } from "./provider/scanner_provider";
 import CompletrSettingsTab from "./settings_tab";
 import { EditorView, ViewUpdate } from "@codemirror/view";
 import { editorToCodeMirrorState, posFromIndex } from "./editor_helpers";
@@ -352,19 +352,28 @@ export default class CompletrPlugin extends Plugin {
     }
 
     async onunload() {
+        await Scanner.onunload();
         this.snippetManager.onunload();
-        await FileScanner.saveData(this.app.vault);
     }
 
     async loadSettings() {
         this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 
-        SuggestionBlacklist.loadData(this.app.vault).then(() => {
-            WordList.loadFromFiles(this.app.vault, this.settings);
-            FileScanner.loadData(this.app.vault);
-            Latex.loadCommands(this.app.vault);
-            Callout.loadSuggestions(this.app.vault, this);
-        });
+        try {
+            // Load all providers in sequence to avoid race conditions
+            await SuggestionBlacklist.loadData(this.app.vault);
+            await WordList.loadFromFiles(this.app.vault, this.settings);
+            
+            // Initialize Scanner
+            Scanner.setVault(this.app.vault);
+            await Scanner.initialize();
+            
+            await Latex.loadCommands(this.app.vault);
+            await Callout.loadSuggestions(this.app.vault, this);
+        } catch (error) {
+            console.error('Error loading Completr providers:', error);
+            throw error;
+        }
     }
 
     get suggestionPopup() {
@@ -376,10 +385,10 @@ export default class CompletrPlugin extends Plugin {
     }
 
     private readonly onFileOpened = (file: TFile) => {
-        if (!this.settings.fileScannerProviderEnabled || !this.settings.fileScannerScanCurrent || !file)
+        if (!file || !(file instanceof TFile) || !this.settings.fileScannerScanCurrent)
             return;
 
-        FileScanner.scanFile(this.settings, file, true);
+        Scanner.scanFile(this.settings, file, true);
     }
 }
 

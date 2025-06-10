@@ -74,9 +74,9 @@ class WordListSuggestionProvider extends DictionaryProvider {
      * Returns all files inside of {@link BASE_FOLDER_PATH}. The resulting strings are full paths, relative to the vault
      * root. <br>
      * @example
-     * - .obsidian/plugins/obsidian-completr/wordLists/german.dic
-     * - .obsidian/plugins/obsidian-completr/wordLists/long_words
-     * - .obsidian/plugins/obsidian-completr/wordLists/special_words.txt
+     * - .obsidian/plugins/obsidian-completr-plus/wordLists/german.dic
+     * - .obsidian/plugins/obsidian-completr-plus/wordLists/long_words
+     * - .obsidian/plugins/obsidian-completr-plus/wordLists/special_words.txt
      * @param vault
      */
     async getRelativeFilePaths(vault: Vault): Promise<string[]> {

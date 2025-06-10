@@ -1,28 +1,52 @@
 import { TFile, Vault } from "obsidian";
-import { CompletrSettings, intoCompletrPath } from "../settings";
+import { CompletrSettings } from "../settings";
 import { DictionaryProvider } from "./dictionary_provider";
 import { SuggestionBlacklist } from "./blacklist";
-
-const SCANNED_WORDS_PATH = "scanned_words.txt";
-const NEW_LINE_REGEX = /\r?\n/;
+import { DatabaseService } from "../db/database";
 
 class ScannerSuggestionProvider extends DictionaryProvider {
-
+    private db: DatabaseService | null = null;
     readonly wordMap: Map<string, Set<string>> = new Map<string, Set<string>>();
+    private vault: Vault | null = null;
+
+    setVault(vault: Vault) {
+        this.vault = vault;
+        this.db = new DatabaseService(vault);
+    }
 
     isEnabled(settings: CompletrSettings): boolean {
         return settings.fileScannerProviderEnabled;
     }
 
+    async initialize() {
+        if (!this.db || !this.vault) {
+            throw new Error('Scanner not properly initialized: vault not set');
+        }
+        await this.db.initialize();
+        await this.loadWordsFromDb();
+    }
+
+    async onunload() {
+        if (this.db) {
+            await this.db.close();
+            this.db = null;
+        }
+        this.vault = null;
+    }
+
     async scanFiles(settings: CompletrSettings, files: TFile[]) {
+        if (!this.db || !this.vault) {
+            throw new Error('Scanner not properly initialized: vault not set');
+        }
         for (let file of files) {
             await this.scanFile(settings, file, false);
         }
-
-        await this.saveData(files[0].vault);
     }
 
     async scanFile(settings: CompletrSettings, file: TFile, saveImmediately: boolean) {
+        if (!this.vault) {
+            throw new Error('Scanner not properly initialized: vault not set');
+        }
         const contents = await file.vault.cachedRead(file);
 
         const regex = new RegExp("\\$+.*?\\$+|`+.*?`+|\\[+.*?\\]+|https?:\\/\\/[^\\n\\s]+|([" + settings.characterRegex + "]+)", "gsu");
@@ -31,50 +55,63 @@ class ScannerSuggestionProvider extends DictionaryProvider {
             if (!groupValue || groupValue.length < settings.minWordLength)
                 continue;
 
-            this.addWord(groupValue);
+            await this.addWord(groupValue);
         }
+    }
 
-        if (saveImmediately)
-            await this.saveData(file.vault);
+    private async loadWordsFromDb() {
+        if (!this.db) {
+            throw new Error('Scanner not properly initialized: db not set');
+        }
+        this.wordMap.clear();
+        // Load all words and organize them by first letter in memory
+        const letters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+        for (const letter of letters) {
+            const words = await this.db.getWordsByFirstLetter(letter);
+            if (words.length > 0) {
+                const set = new Set<string>();
+                words.forEach(word => set.add(word));
+                this.wordMap.set(letter, set);
+            }
+        }
     }
 
     async saveData(vault: Vault) {
-        let output: string[] = [];
-        for (let entry of this.wordMap.entries()) {
-            output = [...output, ...entry[1]];
-        }
-
-        await vault.adapter.write(intoCompletrPath(vault, SCANNED_WORDS_PATH), output.join("\n"));
+        // No need to save data as it's already in the database
     }
 
     async loadData(vault: Vault) {
-        const path = intoCompletrPath(vault, SCANNED_WORDS_PATH);
-        if (!(await vault.adapter.exists(path)))
-            return
-
-        const contents = (await vault.adapter.read(path)).split(NEW_LINE_REGEX);
-        for (let word of contents) {
-            this.addWord(word);
+        // Only set vault and initialize if not already initialized
+        if (!this.vault || !this.db) {
+            this.setVault(vault);
+            await this.initialize();
         }
     }
 
     async deleteAllWords(vault: Vault) {
+        if (!this.db) {
+            throw new Error('Scanner not properly initialized: db not set');
+        }
         this.wordMap.clear();
-        await this.saveData(vault);
+        await this.db.deleteAllWords();
     }
 
-    private addWord(word: string) {
-        if (!word || SuggestionBlacklist.hasText(word))
+    private async addWord(word: string) {
+        if (!word || !this.db || SuggestionBlacklist.hasText(word)) {
             return;
+        }
 
+        await this.db.addWord(word);
+        
+        // Also update in-memory map for fast lookups
         let list = this.wordMap.get(word.charAt(0));
         if (!list) {
             list = new Set<string>();
             this.wordMap.set(word.charAt(0), list);
         }
-
         list.add(word);
     }
 }
 
-export const FileScanner = new ScannerSuggestionProvider();
+// Create a singleton instance but don't initialize it with a vault yet
+export const Scanner = new ScannerSuggestionProvider();

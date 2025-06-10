@@ -6,7 +6,7 @@ on:
       - "*" # Push events to matching any tag format, i.e. 1.0, 20.15.10
 
 env:
-  PLUGIN_NAME: obsidian-completr
+  PLUGIN_NAME: obsidian-completr-plus
 
 jobs:
   build:

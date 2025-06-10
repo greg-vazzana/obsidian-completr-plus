@@ -62,5 +62,5 @@ export const DEFAULT_SETTINGS: CompletrSettings = {
 }
 
 export function intoCompletrPath(vault: Vault, ...path: string[]): string {
-    return vault.configDir + "/plugins/obsidian-completr/" + path.join("/");
+    return vault.configDir + "/plugins/obsidian-completr-plus/" + path.join("/");
 }

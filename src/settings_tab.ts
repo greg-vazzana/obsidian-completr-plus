@@ -1,7 +1,7 @@
 import { App, ButtonComponent, Modal, Notice, PluginSettingTab, Setting } from "obsidian";
 import {isInstalled as isCalloutManagerInstalled} from "obsidian-callout-manager";
 import CompletrPlugin from "./main";
-import { FileScanner } from "./provider/scanner_provider";
+import { Scanner } from "./provider/scanner_provider";
 import { WordList } from "./provider/word_list_provider";
 import { CalloutProviderSource, CompletrSettings, WordInsertionMode } from "./settings";
 import { TextDecoder } from "util";
@@ -223,7 +223,7 @@ export default class CompletrSettingsTab extends PluginSettingTab {
                             .setButtonText("Scan")
                             .setCta(),
                         async () => {
-                            await FileScanner.scanFiles(this.plugin.settings, this.plugin.app.vault.getMarkdownFiles());
+                            await Scanner.scanFiles(this.plugin.settings, this.plugin.app.vault.getMarkdownFiles());
                         },
                     ).open();
                 }))
@@ -238,7 +238,7 @@ export default class CompletrSettingsTab extends PluginSettingTab {
                             .setButtonText("Delete")
                             .setWarning(),
                         async () => {
-                            await FileScanner.deleteAllWords(this.plugin.app.vault);
+                            await Scanner.deleteAllWords(this.plugin.app.vault);
                         },
                     ).open();
                 }));
