@@ -7,6 +7,7 @@ interface WordRow {
     first_letter: string;
     source: string;
     list_id?: number;
+    word_source_list: string;
     created_at: string;
 }
 
@@ -54,19 +55,27 @@ export class DatabaseService {
         }
 
         return new Promise<void>((resolve, reject) => {
-            const request = indexedDB.open(this.dbName, 1);
+            const request = indexedDB.open(this.dbName, 3); // Increment version to force upgrade
 
             request.onerror = () => reject(request.error);
 
             request.onupgradeneeded = (event) => {
                 const db = (event.target as IDBOpenDBRequest).result;
 
-                // Create stores if they don't exist
-                if (!db.objectStoreNames.contains('words')) {
-                    const wordStore = db.createObjectStore('words', { keyPath: 'id', autoIncrement: true });
-                    wordStore.createIndex('first_letter', 'first_letter');
-                    wordStore.createIndex('word_source', ['word', 'source', 'list_id'], { unique: true });
+                // Delete old stores if they exist
+                if (db.objectStoreNames.contains('words')) {
+                    db.deleteObjectStore('words');
                 }
+
+                // Create stores with updated schema
+                const wordStore = db.createObjectStore('words', { keyPath: 'id', autoIncrement: true });
+                wordStore.createIndex('first_letter', 'first_letter');
+                // Create separate indexes instead of a composite key
+                wordStore.createIndex('word', 'word');
+                wordStore.createIndex('source', 'source');
+                wordStore.createIndex('list_id', 'list_id');
+                // Create a string-based composite key
+                wordStore.createIndex('word_source_list', 'word_source_list', { unique: true });
 
                 if (!db.objectStoreNames.contains('latex_commands')) {
                     const latexStore = db.createObjectStore('latex_commands', { keyPath: 'id', autoIncrement: true });
@@ -116,44 +125,97 @@ export class DatabaseService {
     }
 
     async addWord(word: string, source: string = 'scan', listId?: number): Promise<void> {
+        // Create a string-based composite key that's safe for indexing
+        const word_source_list = `${word}::${source}::${listId ?? 'null'}`;
+        
         const row: WordRow = {
             word,
             first_letter: word.charAt(0),
             source,
-            list_id: listId,
+            list_id: listId ?? null,
+            word_source_list,
             created_at: new Date().toISOString()
         };
 
         await this.transaction('words', 'readwrite', async (store) => {
-            return new Promise<void>((resolve, reject) => {
-                const request = store.add(row);
-                request.onerror = () => {
-                    if (request.error?.name === 'ConstraintError') {
-                        resolve(); // Ignore duplicate entries
-                    } else {
-                        reject(request.error);
+            try {
+                // First check if word exists using the string composite key
+                const index = store.index('word_source_list');
+                const checkRequest = await new Promise<any>((resolve, reject) => {
+                    try {
+                        const request = index.get(word_source_list);
+                        request.onsuccess = () => resolve(request.result);
+                        request.onerror = (event) => reject(request.error);
+                    } catch (error) {
+                        console.error('[Completr] Error checking for existing word:', error);
+                        reject(error);
                     }
-                };
-                request.onsuccess = () => resolve();
-            });
+                });
+
+                if (checkRequest) {
+                    return; // Word already exists
+                }
+
+                return new Promise<void>((resolve, reject) => {
+                    const request = store.add(row);
+                    request.onerror = () => {
+                        if (request.error?.name === 'ConstraintError') {
+                            resolve(); // Ignore duplicate entries
+                        } else {
+                            reject(request.error);
+                        }
+                    };
+                    request.onsuccess = () => resolve();
+                });
+            } catch (error) {
+                console.error('[Completr] Error adding word:', error);
+                throw error;
+            }
         });
     }
 
     async addWords(words: string[], source: string = 'scan', listId?: number): Promise<void> {
         await this.transaction('words', 'readwrite', async (store) => {
             for (const word of words) {
-                const row: WordRow = {
-                    word,
-                    first_letter: word.charAt(0),
-                    source,
-                    list_id: listId,
-                    created_at: new Date().toISOString()
-                };
-                await new Promise<void>((resolve) => {
-                    const request = store.add(row);
-                    request.onerror = () => resolve(); // Ignore errors (duplicates)
-                    request.onsuccess = () => resolve();
-                });
+                try {
+                    // Create a string-based composite key that's safe for indexing
+                    const word_source_list = `${word}::${source}::${listId ?? 'null'}`;
+                    
+                    const row: WordRow = {
+                        word,
+                        first_letter: word.charAt(0),
+                        source,
+                        list_id: listId ?? null,
+                        word_source_list,
+                        created_at: new Date().toISOString()
+                    };
+
+                    // First check if word exists using string composite key
+                    const index = store.index('word_source_list');
+                    const checkRequest = await new Promise<any>((resolve, reject) => {
+                        try {
+                            const request = index.get(word_source_list);
+                            request.onsuccess = () => resolve(request.result);
+                            request.onerror = (event) => reject(request.error);
+                        } catch (error) {
+                            console.error('[Completr] Error checking for existing word in batch:', error);
+                            reject(error);
+                        }
+                    });
+
+                    if (checkRequest) {
+                        continue; // Skip existing word
+                    }
+
+                    await new Promise<void>((resolve, reject) => {
+                        const request = store.add(row);
+                        request.onerror = () => resolve(); // Ignore errors (duplicates)
+                        request.onsuccess = () => resolve();
+                    });
+                } catch (error) {
+                    console.error('[Completr] Error processing word in batch:', error);
+                    continue; // Continue with next word instead of failing entire batch
+                }
             }
         });
     }
@@ -349,12 +411,17 @@ export class DatabaseService {
         });
     }
 
-    getWordCount(source: string = 'scan'): number {
+    async getWordCount(source: string = 'scan'): Promise<number> {
         if (!this.db) {
             throw new Error('Database not initialized');
         }
 
-        const stmt = this.db.prepare('SELECT COUNT(*) as count FROM words WHERE source = ?');
-        return (stmt.get(source) as CountResult).count;
+        return this.transaction('words', 'readonly', async (store) => {
+            return new Promise<number>((resolve, reject) => {
+                const request = store.count();
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => resolve(request.result as number);
+            });
+        });
     }
 } 
