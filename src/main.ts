@@ -352,7 +352,7 @@ export default class CompletrPlugin extends Plugin {
     }
 
     async onunload() {
-        await Scanner.onunload();
+        // Clean up any resources
         this.snippetManager.onunload();
     }
 
@@ -360,11 +360,15 @@ export default class CompletrPlugin extends Plugin {
         this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 
         try {
-            // Load all providers in sequence to avoid race conditions
+            // Initialize providers in sequence to avoid race conditions
             await SuggestionBlacklist.loadData(this.app.vault);
+            
+            // Initialize word list provider first
+            WordList.setVault(this.app.vault);
+            await WordList.initialize();
             await WordList.loadFromFiles(this.app.vault, this.settings);
             
-            // Initialize Scanner
+            // Then initialize scanner
             Scanner.setVault(this.app.vault);
             await Scanner.initialize();
             
@@ -374,6 +378,19 @@ export default class CompletrPlugin extends Plugin {
             console.error('Error loading Completr providers:', error);
             throw error;
         }
+    }
+
+    async scanCurrentFile() {
+        const activeFile = this.app.workspace.getActiveFile();
+        if (!activeFile || !this.settings.scanEnabled) return;
+
+        await Scanner.scanFile(this.settings, activeFile);
+    }
+
+    async scanAllFiles() {
+        if (!this.settings.scanEnabled) return;
+        const files = this.app.vault.getFiles();
+        await Scanner.scanFiles(this.settings, files);
     }
 
     get suggestionPopup() {

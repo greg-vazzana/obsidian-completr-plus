@@ -1,5 +1,23 @@
-import { Vault } from 'obsidian';
+import { Notice, Vault } from 'obsidian';
 import { intoCompletrPath } from '../settings';
+import { createHash } from 'crypto';
+
+interface Source {
+    id?: number;
+    name: string;          // "scan" or word list filename
+    type: "scan" | "word_list";
+    last_updated: string;  // ISO timestamp
+    checksum?: string;     // MD5 hash (for word_list type)
+    file_exists?: boolean; // for word_list type
+}
+
+interface Word {
+    id?: number;
+    word: string;
+    first_letter: string;
+    source_id: number;    // Foreign key to Source table
+    created_at: string;   // ISO timestamp
+}
 
 interface WordRow {
     id?: number;
@@ -45,8 +63,7 @@ export class DatabaseService {
     private readonly dbName: string;
 
     constructor(vault: Vault) {
-        // Use vault ID as part of database name to isolate data between vaults
-        this.dbName = `completr-plus-${vault.getName()}`;
+        this.dbName = `completr-${vault.getName()}`;
     }
 
     async initialize(): Promise<void> {
@@ -55,7 +72,7 @@ export class DatabaseService {
         }
 
         return new Promise<void>((resolve, reject) => {
-            const request = indexedDB.open(this.dbName, 3); // Increment version to force upgrade
+            const request = indexedDB.open(this.dbName, 4); // Increment version for new schema
 
             request.onerror = () => reject(request.error);
 
@@ -66,32 +83,27 @@ export class DatabaseService {
                 if (db.objectStoreNames.contains('words')) {
                     db.deleteObjectStore('words');
                 }
+                if (db.objectStoreNames.contains('word_lists')) {
+                    db.deleteObjectStore('word_lists');
+                }
+                if (db.objectStoreNames.contains('latex_commands')) {
+                    db.deleteObjectStore('latex_commands');
+                }
 
-                // Create stores with updated schema
+                // Create new stores with updated schema
+                const sourceStore = db.createObjectStore('sources', { keyPath: 'id', autoIncrement: true });
+                sourceStore.createIndex('name', 'name', { unique: true });
+                sourceStore.createIndex('type', 'type');
+
                 const wordStore = db.createObjectStore('words', { keyPath: 'id', autoIncrement: true });
+                wordStore.createIndex('word', 'word', { unique: true });
                 wordStore.createIndex('first_letter', 'first_letter');
-                // Create separate indexes instead of a composite key
-                wordStore.createIndex('word', 'word');
-                wordStore.createIndex('source', 'source');
-                wordStore.createIndex('list_id', 'list_id');
-                // Create a string-based composite key
-                wordStore.createIndex('word_source_list', 'word_source_list', { unique: true });
+                wordStore.createIndex('source_id', 'source_id');
 
                 if (!db.objectStoreNames.contains('latex_commands')) {
                     const latexStore = db.createObjectStore('latex_commands', { keyPath: 'id', autoIncrement: true });
                     latexStore.createIndex('first_letter', 'first_letter');
                     latexStore.createIndex('command', 'command', { unique: true });
-                }
-
-                if (!db.objectStoreNames.contains('word_lists')) {
-                    const listStore = db.createObjectStore('word_lists', { keyPath: 'id', autoIncrement: true });
-                    listStore.createIndex('name', 'name', { unique: true });
-                }
-
-                if (!db.objectStoreNames.contains('frontmatter')) {
-                    const fmStore = db.createObjectStore('frontmatter', { keyPath: 'id', autoIncrement: true });
-                    fmStore.createIndex('key', 'key');
-                    fmStore.createIndex('key_value_file', ['key', 'value', 'file_path'], { unique: true });
                 }
             };
 
@@ -102,121 +114,194 @@ export class DatabaseService {
         });
     }
 
-    async close(): Promise<void> {
-        if (this.db) {
-            this.db.close();
-            this.db = null;
-        }
-    }
-
-    private async transaction<T>(storeName: string, mode: IDBTransactionMode, callback: (store: IDBObjectStore) => Promise<T>): Promise<T> {
+    private async transaction<T>(
+        storeName: string,
+        mode: IDBTransactionMode,
+        callback: (store: IDBObjectStore) => Promise<T>
+    ): Promise<T> {
         if (!this.db) {
             throw new Error('Database not initialized');
         }
 
         return new Promise<T>((resolve, reject) => {
-            const transaction = this.db!.transaction(storeName, mode);
-            const store = transaction.objectStore(storeName);
-
+            const transaction = this.db.transaction(storeName, mode);
             transaction.onerror = () => reject(transaction.error);
-
-            callback(store).then(resolve).catch(reject);
+            
+            const store = transaction.objectStore(storeName);
+            callback(store)
+                .then(resolve)
+                .catch(reject);
         });
     }
 
-    async addWord(word: string, source: string = 'scan', listId?: number): Promise<void> {
-        // Create a string-based composite key that's safe for indexing
-        const word_source_list = `${word}::${source}::${listId ?? 'null'}`;
-        
-        const row: WordRow = {
-            word,
-            first_letter: word.charAt(0),
-            source,
-            list_id: listId ?? null,
-            word_source_list,
-            created_at: new Date().toISOString()
+    async initializeSources(): Promise<void> {
+        // Ensure scan source exists
+        const scanSource: Source = {
+            name: 'scan',
+            type: 'scan',
+            last_updated: new Date().toISOString()
         };
 
-        await this.transaction('words', 'readwrite', async (store) => {
-            try {
-                // First check if word exists using the string composite key
-                const index = store.index('word_source_list');
-                const checkRequest = await new Promise<any>((resolve, reject) => {
-                    try {
-                        const request = index.get(word_source_list);
-                        request.onsuccess = () => resolve(request.result);
-                        request.onerror = (event) => reject(request.error);
-                    } catch (error) {
-                        console.error('[Completr] Error checking for existing word:', error);
-                        reject(error);
-                    }
-                });
+        await this.transaction('sources', 'readwrite', async (store) => {
+            const index = store.index('name');
+            const existing = await new Promise<Source>((resolve) => {
+                const request = index.get('scan');
+                request.onsuccess = () => resolve(request.result);
+            });
 
-                if (checkRequest) {
-                    return; // Word already exists
-                }
-
-                return new Promise<void>((resolve, reject) => {
-                    const request = store.add(row);
-                    request.onerror = () => {
-                        if (request.error?.name === 'ConstraintError') {
-                            resolve(); // Ignore duplicate entries
-                        } else {
-                            reject(request.error);
-                        }
-                    };
+            if (!existing) {
+                await new Promise<void>((resolve, reject) => {
+                    const request = store.add(scanSource);
+                    request.onerror = () => reject(request.error);
                     request.onsuccess = () => resolve();
                 });
-            } catch (error) {
-                console.error('[Completr] Error adding word:', error);
-                throw error;
             }
         });
     }
 
-    async addWords(words: string[], source: string = 'scan', listId?: number): Promise<void> {
-        await this.transaction('words', 'readwrite', async (store) => {
-            for (const word of words) {
-                try {
-                    // Create a string-based composite key that's safe for indexing
-                    const word_source_list = `${word}::${source}::${listId ?? 'null'}`;
+    async calculateFileHash(contents: string): Promise<string> {
+        return createHash('md5').update(contents).digest('hex');
+    }
+
+    async addOrUpdateWordListSource(filename: string, contents: string): Promise<number> {
+        const hash = await this.calculateFileHash(contents);
+        
+        return this.transaction('sources', 'readwrite', async (store) => {
+            const index = store.index('name');
+            const existing = await new Promise<Source>((resolve) => {
+                const request = index.get(filename);
+                request.onsuccess = () => resolve(request.result);
+            });
+
+            if (existing) {
+                if (existing.checksum !== hash) {
+                    // Delete all words from this source if hash changed
+                    await this.deleteWordsBySource(existing.id);
                     
-                    const row: WordRow = {
-                        word,
-                        first_letter: word.charAt(0),
-                        source,
-                        list_id: listId ?? null,
-                        word_source_list,
-                        created_at: new Date().toISOString()
-                    };
-
-                    // First check if word exists using string composite key
-                    const index = store.index('word_source_list');
-                    const checkRequest = await new Promise<any>((resolve, reject) => {
-                        try {
-                            const request = index.get(word_source_list);
-                            request.onsuccess = () => resolve(request.result);
-                            request.onerror = (event) => reject(request.error);
-                        } catch (error) {
-                            console.error('[Completr] Error checking for existing word in batch:', error);
-                            reject(error);
-                        }
-                    });
-
-                    if (checkRequest) {
-                        continue; // Skip existing word
-                    }
+                    existing.checksum = hash;
+                    existing.last_updated = new Date().toISOString();
+                    existing.file_exists = true;
 
                     await new Promise<void>((resolve, reject) => {
-                        const request = store.add(row);
-                        request.onerror = () => resolve(); // Ignore errors (duplicates)
+                        const request = store.put(existing);
+                        request.onerror = () => reject(request.error);
                         request.onsuccess = () => resolve();
                     });
-                } catch (error) {
-                    console.error('[Completr] Error processing word in batch:', error);
-                    continue; // Continue with next word instead of failing entire batch
+
+                    new Notice(`Word list '${filename}' has changed and will be re-imported`);
+                    return existing.id;
+                }
+                return existing.id;
+            } else {
+                const source: Source = {
+                    name: filename,
+                    type: 'word_list',
+                    checksum: hash,
+                    last_updated: new Date().toISOString(),
+                    file_exists: true
+                };
+
+                return new Promise<number>((resolve, reject) => {
+                    const request = store.add(source);
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => resolve(request.result as number);
+                });
+            }
+        });
+    }
+
+    async markSourceFileStatus(filename: string, exists: boolean): Promise<void> {
+        await this.transaction('sources', 'readwrite', async (store) => {
+            const index = store.index('name');
+            const existing = await new Promise<Source>((resolve) => {
+                const request = index.get(filename);
+                request.onsuccess = () => resolve(request.result);
+            });
+
+            if (existing && existing.file_exists !== exists) {
+                existing.file_exists = exists;
+                existing.last_updated = new Date().toISOString();
+
+                await new Promise<void>((resolve, reject) => {
+                    const request = store.put(existing);
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => resolve();
+                });
+
+                if (!exists) {
+                    new Notice(`Word list '${filename}' no longer exists`);
                 }
             }
+        });
+    }
+
+    async addWord(word: string, sourceId: number): Promise<void> {
+        await this.transaction('words', 'readwrite', async (store) => {
+            const index = store.index('word');
+            const existing = await new Promise<Word>((resolve) => {
+                const request = index.get(word);
+                request.onsuccess = () => resolve(request.result);
+            });
+
+            if (!existing) {
+                const newWord: Word = {
+                    word,
+                    first_letter: word.charAt(0),
+                    source_id: sourceId,
+                    created_at: new Date().toISOString()
+                };
+
+                await new Promise<void>((resolve, reject) => {
+                    const request = store.add(newWord);
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => resolve();
+                });
+            }
+            // If word exists, keep original source_id as requested
+        });
+    }
+
+    async getWordsByFirstLetter(letter: string): Promise<string[]> {
+        return this.transaction('words', 'readonly', async (store) => {
+            return new Promise<string[]>((resolve, reject) => {
+                const index = store.index('first_letter');
+                const request = index.getAll(letter);
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => {
+                    const rows = request.result as Word[];
+                    resolve([...new Set(rows.map(row => row.word))]);
+                };
+            });
+        });
+    }
+
+    private async deleteWordsBySource(sourceId: number): Promise<void> {
+        await this.transaction('words', 'readwrite', async (store) => {
+            const index = store.index('source_id');
+            const request = index.getAllKeys(sourceId);
+            
+            const keys = await new Promise<IDBValidKey[]>((resolve, reject) => {
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => resolve(request.result);
+            });
+
+            for (const key of keys) {
+                await new Promise<void>((resolve, reject) => {
+                    const deleteRequest = store.delete(key);
+                    deleteRequest.onerror = () => reject(deleteRequest.error);
+                    deleteRequest.onsuccess = () => resolve();
+                });
+            }
+        });
+    }
+
+    async deleteAllWords(): Promise<void> {
+        await this.transaction('words', 'readwrite', async (store) => {
+            return new Promise<void>((resolve, reject) => {
+                const request = store.clear();
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => resolve();
+            });
         });
     }
 
@@ -321,71 +406,6 @@ export class DatabaseService {
                         .slice(0, 10)
                         .map(row => row.value);
                     resolve(filtered);
-                };
-            });
-        });
-    }
-
-    async getWordsByFirstLetter(letter: string, ignoreCase: boolean = true): Promise<string[]> {
-        return this.transaction('words', 'readonly', async (store) => {
-            return new Promise<string[]>((resolve, reject) => {
-                const index = store.index('first_letter');
-                const request = index.getAll(ignoreCase ? letter.toLowerCase() : letter);
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => {
-                    const rows = request.result as WordRow[];
-                    resolve([...new Set(rows.map(row => row.word))]);
-                };
-            });
-        });
-    }
-
-    async deleteAllWords(source: string = 'scan'): Promise<void> {
-        await this.transaction('words', 'readwrite', async (store) => {
-            return new Promise<void>((resolve, reject) => {
-                const request = store.openCursor();
-                request.onerror = () => reject(request.error);
-                request.onsuccess = (event) => {
-                    const cursor = (event.target as IDBRequest).result;
-                    if (cursor) {
-                        const row = cursor.value as WordRow;
-                        if (row.source === source) {
-                            cursor.delete();
-                        }
-                        cursor.continue();
-                    } else {
-                        resolve();
-                    }
-                };
-            });
-        });
-    }
-
-    async deleteWordList(listId: number): Promise<void> {
-        await this.transaction('word_lists', 'readwrite', async (store) => {
-            return new Promise<void>((resolve, reject) => {
-                const request = store.delete(listId);
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => resolve();
-            });
-        });
-
-        // Delete associated words
-        await this.transaction('words', 'readwrite', async (store) => {
-            return new Promise<void>((resolve, reject) => {
-                const request = store.openCursor();
-                request.onerror = () => reject(request.error);
-                request.onsuccess = (event) => {
-                    const cursor = (event.target as IDBRequest).result;
-                    if (cursor) {
-                        const row = cursor.value as WordRow;
-                        if (row.list_id === listId) {
-                            cursor.delete();
-                        }
-                        cursor.continue();
-                    } else {
-                        resolve();
-                    }
                 };
             });
         });

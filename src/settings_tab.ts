@@ -210,7 +210,7 @@ export default class CompletrSettingsTab extends PluginSettingTab {
                 }));
 
         new Setting(containerEl)
-            .setName("File scanner provider")
+            .setName("Scanner")
             .setHeading()
             .addExtraButton(button => button
                 .setIcon("search")
@@ -257,22 +257,12 @@ export default class CompletrSettingsTab extends PluginSettingTab {
                             .setButtonText("Delete")
                             .setWarning(),
                         async () => {
-                            await Scanner.deleteAllWords(this.plugin.app.vault);
+                            await Scanner.deleteAllWords();
                         },
                     ).open();
                 }));
 
-        this.createEnabledSetting("fileScannerProviderEnabled", "Whether or not the file scanner provider is enabled.", containerEl);
-
-        new Setting(containerEl)
-            .setName("Scan active file")
-            .setDesc("If this setting is enabled, the currently opened file will be scanned to find new words.")
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.fileScannerScanCurrent)
-                .onChange(async val => {
-                    this.plugin.settings.fileScannerScanCurrent = val;
-                    await this.plugin.saveSettings();
-                }));
+        this.createEnabledSetting("scanEnabled", "Whether or not the scanner is enabled", containerEl);
 
         new Setting(containerEl)
             .setName("Word list provider")
@@ -299,7 +289,7 @@ export default class CompletrSettingsTab extends PluginSettingTab {
                     const buf = await file.arrayBuffer();
                     const encoding = detect(Buffer.from(buf.slice(0, 1024))).encoding;
                     const text = new TextDecoder(encoding).decode(buf);
-                    const success = await WordList.importWordList(this.app.vault, file.name, text);
+                    const success = await WordList.importWordList(this.app.vault, file.name, text, this.plugin.settings);
                     changed ||= success;
 
                     if (!success)

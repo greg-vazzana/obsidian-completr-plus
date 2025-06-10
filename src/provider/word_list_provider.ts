@@ -2,23 +2,51 @@ import { CompletrSettings, intoCompletrPath } from "../settings";
 import { DictionaryProvider } from "./dictionary_provider";
 import { Vault } from "obsidian";
 import { SuggestionBlacklist } from "./blacklist";
+import { DatabaseService } from "../db/database";
 
 const WORD_LISTS_FOLDER_PATH = "wordLists";
 const NEW_LINE_REGEX = /\r?\n/;
 
 class WordListSuggestionProvider extends DictionaryProvider {
-
     readonly wordMap: Map<string, string[]> = new Map<string, string[]>();
+    private db: DatabaseService | null = null;
+    private vault: Vault | null = null;
+
+    setVault(vault: Vault) {
+        this.vault = vault;
+        this.db = new DatabaseService(vault);
+    }
 
     isEnabled(settings: CompletrSettings): boolean {
         return settings.wordListProviderEnabled;
     }
 
+    async initialize(): Promise<void> {
+        if (!this.db) {
+            throw new Error('Word list provider not properly initialized: db not set');
+        }
+        await this.db.initialize();
+        await this.db.initializeSources();
+    }
+
     async loadFromFiles(vault: Vault, settings: CompletrSettings): Promise<number> {
+        if (!this.db) {
+            throw new Error('Word list provider not properly initialized: db not set');
+        }
+        
+        if (!settings.wordListProviderEnabled) {
+            return 0;
+        }
+
         this.wordMap.clear();
 
         const fileNames = await this.getRelativeFilePaths(vault);
-        // Read all files
+        
+        // Check for files that no longer exist
+        const existingFiles = new Set(fileNames);
+        await this.markNonExistentFiles(existingFiles);
+
+        // Read and process all files
         for (let i = fileNames.length - 1; i >= 0; i--) {
             const fileName = fileNames[i];
 
@@ -30,19 +58,27 @@ class WordListSuggestionProvider extends DictionaryProvider {
                 continue;
             }
 
+            // Get or create source record and check if content changed
+            const sourceId = await this.db.addOrUpdateWordListSource(fileName, data);
+
             // Each line is a word
             const lines = data.split(NEW_LINE_REGEX);
             for (let line of lines) {
+                line = line.trim();
                 if (line === "" || line.length < settings.minWordLength)
                     continue;
 
+                await this.db.addWord(line, sourceId);
+
+                // Update in-memory map
                 let list = this.wordMap.get(line.charAt(0));
                 if (!list) {
                     list = [];
                     this.wordMap.set(line.charAt(0), list);
                 }
-
-                list.push(line.trim());
+                if (!list.includes(line)) {
+                    list.push(line);
+                }
             }
         }
 
@@ -57,11 +93,31 @@ class WordListSuggestionProvider extends DictionaryProvider {
         return count;
     }
 
+    private async markNonExistentFiles(existingFiles: Set<string>): Promise<void> {
+        if (!this.db || !this.vault) {
+            throw new Error('Word list provider not properly initialized');
+        }
+
+        const path = intoCompletrPath(this.vault, WORD_LISTS_FOLDER_PATH);
+        if (!(await this.vault.adapter.exists(path))) {
+            return;
+        }
+
+        const files = await this.vault.adapter.list(path);
+        for (const file of files.files) {
+            await this.db.markSourceFileStatus(file, existingFiles.has(file));
+        }
+    }
+
     async deleteWordList(vault: Vault, path: string) {
         await vault.adapter.remove(path);
     }
 
-    async importWordList(vault: Vault, name: string, text: string): Promise<boolean> {
+    async importWordList(vault: Vault, name: string, text: string, settings: CompletrSettings): Promise<boolean> {
+        if (!settings.wordListProviderEnabled) {
+            return false;
+        }
+
         const path = intoCompletrPath(vault, WORD_LISTS_FOLDER_PATH, name);
         if (await vault.adapter.exists(path))
             return false;

@@ -7,46 +7,39 @@ import { DatabaseService } from "../db/database";
 class ScannerSuggestionProvider extends DictionaryProvider {
     private db: DatabaseService | null = null;
     readonly wordMap: Map<string, Set<string>> = new Map<string, Set<string>>();
-    private vault: Vault | null = null;
+    private scanSourceId: number | null = null;
 
     setVault(vault: Vault) {
-        this.vault = vault;
         this.db = new DatabaseService(vault);
     }
 
-    isEnabled(settings: CompletrSettings): boolean {
-        return settings.fileScannerProviderEnabled;
-    }
-
-    async initialize() {
-        if (!this.db || !this.vault) {
-            throw new Error('Scanner not properly initialized: vault not set');
+    async initialize(): Promise<void> {
+        if (!this.db) {
+            throw new Error('Scanner not properly initialized: db not set');
         }
         await this.db.initialize();
+        await this.db.initializeSources();
         await this.loadWordsFromDb();
     }
 
-    async onunload() {
-        if (this.db) {
-            await this.db.close();
-            this.db = null;
-        }
-        this.vault = null;
+    isEnabled(settings: CompletrSettings): boolean {
+        return settings.scanEnabled;
     }
 
     async scanFiles(settings: CompletrSettings, files: TFile[]) {
-        if (!this.db || !this.vault) {
-            throw new Error('Scanner not properly initialized: vault not set');
+        if (!this.db) {
+            throw new Error('Scanner not properly initialized: db not set');
         }
         for (let file of files) {
-            await this.scanFile(settings, file, false);
+            await this.scanFile(settings, file);
         }
     }
 
-    async scanFile(settings: CompletrSettings, file: TFile, saveImmediately: boolean) {
-        if (!this.vault) {
-            throw new Error('Scanner not properly initialized: vault not set');
+    async scanFile(settings: CompletrSettings, file: TFile) {
+        if (!this.db) {
+            throw new Error('Scanner not properly initialized: db not set');
         }
+
         const contents = await file.vault.cachedRead(file);
 
         const regex = new RegExp("\\$+.*?\\$+|`+.*?`+|\\[+.*?\\]+|https?:\\/\\/[^\\n\\s]+|([" + settings.characterRegex + "]+)", "gsu");
@@ -82,13 +75,13 @@ class ScannerSuggestionProvider extends DictionaryProvider {
 
     async loadData(vault: Vault) {
         // Only set vault and initialize if not already initialized
-        if (!this.vault || !this.db) {
+        if (!this.db) {
             this.setVault(vault);
             await this.initialize();
         }
     }
 
-    async deleteAllWords(vault: Vault) {
+    async deleteAllWords() {
         if (!this.db) {
             throw new Error('Scanner not properly initialized: db not set');
         }
@@ -101,7 +94,24 @@ class ScannerSuggestionProvider extends DictionaryProvider {
             return;
         }
 
-        await this.db.addWord(word);
+        // Get scan source ID if not already cached
+        if (this.scanSourceId === null) {
+            const index = this.db['db'].transaction('sources', 'readonly')
+                .objectStore('sources')
+                .index('name');
+            
+            const request = index.get('scan');
+            this.scanSourceId = await new Promise((resolve, reject) => {
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => resolve(request.result?.id ?? null);
+            });
+
+            if (this.scanSourceId === null) {
+                throw new Error('Scan source not found in database');
+            }
+        }
+
+        await this.db.addWord(word, this.scanSourceId);
         
         // Also update in-memory map for fast lookups
         let list = this.wordMap.get(word.charAt(0));
