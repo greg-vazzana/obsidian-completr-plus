@@ -69,7 +69,7 @@ class WordListSuggestionProvider extends DictionaryProvider {
                     continue;
 
                 // Only accept words that match our word pattern
-                if (!line.match(/^[\w]+(?:[-'_]\w+)*(?:\.\w+)*$/u))
+                if (!line.match(/^[\p{L}\d]+(?:[-'_][\p{L}\d]+)*(?:\.[\p{L}\d]+)*$/u))
                     continue;
 
                 await this.db.addWord(line, sourceId);
