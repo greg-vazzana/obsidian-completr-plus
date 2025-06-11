@@ -42,9 +42,15 @@ class ScannerSuggestionProvider extends DictionaryProvider {
 
         const contents = await file.vault.cachedRead(file);
 
-        const regex = new RegExp("\\$+.*?\\$+|`+.*?`+|\\[+.*?\\]+|https?:\\/\\/[^\\n\\s]+|([" + settings.characterRegex + "]+)", "gsu");
+        // Match words that:
+        // 1. Start after spaces, periods, commas, or at line start
+        // 2. Contain word characters (letters, numbers)
+        // 3. Can have internal hyphens, apostrophes, or underscores followed by more word chars
+        // 4. Can have dot-separated segments (like file.txt)
+        // 5. End at spaces, periods, commas, or line end
+        const regex = new RegExp("\\$+.*?\\$+|`+.*?`+|\\[+.*?\\]+|https?:\\/\\/[^\\n\\s]+|(?:^|(?<=\\s|[.,]))[\\w]+(?:[-'_]\\w+)*(?:\\.\\w+)*(?=$|\\s|[.,])", "gsu");
         for (let match of contents.matchAll(regex)) {
-            const groupValue = match[1];
+            const groupValue = match[0]; // Use match[0] since we're not using a capture group anymore
             if (!groupValue || groupValue.length < settings.minWordLength)
                 continue;
 

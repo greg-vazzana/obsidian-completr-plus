@@ -68,6 +68,10 @@ class WordListSuggestionProvider extends DictionaryProvider {
                 if (line === "" || line.length < settings.minWordLength)
                     continue;
 
+                // Only accept words that match our word pattern
+                if (!line.match(/^[\w]+(?:[-'_]\w+)*(?:\.\w+)*$/u))
+                    continue;
+
                 await this.db.addWord(line, sourceId);
 
                 // Update in-memory map
