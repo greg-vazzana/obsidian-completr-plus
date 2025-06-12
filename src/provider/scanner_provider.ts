@@ -1,12 +1,12 @@
 import { TFile, Vault } from "obsidian";
 import { CompletrSettings } from "../settings";
-import { DictionaryProvider } from "./dictionary_provider";
+import { DictionaryProvider, Word } from "./dictionary_provider";
 import { SuggestionBlacklist } from "./blacklist";
 import { DatabaseService } from "../db/database";
 
 class ScannerSuggestionProvider extends DictionaryProvider {
+    readonly wordMap: Map<string, Set<Word>> = new Map();
     private db: DatabaseService | null = null;
-    readonly wordMap: Map<string, Set<string>> = new Map<string, Set<string>>();
     private scanSourceId: number | null = null;
 
     setVault(vault: Vault) {
@@ -50,7 +50,7 @@ class ScannerSuggestionProvider extends DictionaryProvider {
         // 5. End at spaces, periods, commas, or line end
         const regex = new RegExp("\\$+.*?\\$+|`+.*?`+|\\[+.*?\\]+|https?:\\/\\/[^\\n\\s]+|(?:^|(?<=\\s|[.,]))(?:[\\p{L}\\d]+(?:[-'_][\\p{L}\\d]+)*(?:\\.[\\p{L}\\d]+)*)", "gsu");
         for (let match of contents.matchAll(regex)) {
-            const groupValue = match[0]; // Use match[0] since we're not using a capture group anymore
+            const groupValue = match[0];
             if (!groupValue || groupValue.length < settings.minWordLength)
                 continue;
 
@@ -68,9 +68,15 @@ class ScannerSuggestionProvider extends DictionaryProvider {
         for (const letter of letters) {
             const words = await this.db.getWordsByFirstLetter(letter);
             if (words.length > 0) {
-                const set = new Set<string>();
-                words.forEach(word => set.add(word));
-                this.wordMap.set(letter, set);
+                const wordSet = new Set<Word>();
+                words.forEach(word => {
+                    if (!SuggestionBlacklist.hasText(word)) {
+                        wordSet.add({ word, frequency: 1 });
+                    }
+                });
+                if (wordSet.size > 0) {
+                    this.wordMap.set(letter, wordSet);
+                }
             }
         }
     }
@@ -120,12 +126,12 @@ class ScannerSuggestionProvider extends DictionaryProvider {
         await this.db.addWord(word, this.scanSourceId);
         
         // Also update in-memory map for fast lookups
-        let list = this.wordMap.get(word.charAt(0));
-        if (!list) {
-            list = new Set<string>();
-            this.wordMap.set(word.charAt(0), list);
+        let wordSet = this.wordMap.get(word.charAt(0));
+        if (!wordSet) {
+            wordSet = new Set<Word>();
+            this.wordMap.set(word.charAt(0), wordSet);
         }
-        list.add(word);
+        wordSet.add({ word, frequency: 1 });
     }
 }
 

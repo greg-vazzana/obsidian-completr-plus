@@ -1,5 +1,5 @@
 import { CompletrSettings, intoCompletrPath } from "../settings";
-import { DictionaryProvider } from "./dictionary_provider";
+import { DictionaryProvider, Word } from "./dictionary_provider";
 import { Vault } from "obsidian";
 import { SuggestionBlacklist } from "./blacklist";
 import { DatabaseService } from "../db/database";
@@ -8,7 +8,7 @@ const WORD_LISTS_FOLDER_PATH = "wordLists";
 const NEW_LINE_REGEX = /\r?\n/;
 
 class WordListSuggestionProvider extends DictionaryProvider {
-    readonly wordMap: Map<string, string[]> = new Map<string, string[]>();
+    readonly wordMap: Map<string, Set<Word>> = new Map();
     private db: DatabaseService | null = null;
     private vault: Vault | null = null;
 
@@ -75,23 +75,28 @@ class WordListSuggestionProvider extends DictionaryProvider {
                 await this.db.addWord(line, sourceId);
 
                 // Update in-memory map
-                let list = this.wordMap.get(line.charAt(0));
-                if (!list) {
-                    list = [];
-                    this.wordMap.set(line.charAt(0), list);
+                let wordSet = this.wordMap.get(line.charAt(0));
+                if (!wordSet) {
+                    wordSet = new Set<Word>();
+                    this.wordMap.set(line.charAt(0), wordSet);
                 }
-                if (!list.includes(line)) {
-                    list.push(line);
+                const wordObj = { word: line, frequency: 1 };
+                if (!SuggestionBlacklist.hasText(line)) {
+                    wordSet.add(wordObj);
                 }
             }
         }
 
         let count = 0;
-        // Sort by length
-        for (let entry of this.wordMap.entries()) {
-            const newValue = SuggestionBlacklist.filterText(entry[1].sort((a, b) => a.length - b.length));
-            this.wordMap.set(entry[0], newValue);
-            count += newValue.length;
+        // Sort by frequency (higher first) then length (shorter first)
+        for (let [letter, wordSet] of this.wordMap.entries()) {
+            const sortedWords = Array.from(wordSet).sort((a, b) => {
+                const freqDiff = b.frequency - a.frequency;
+                return freqDiff !== 0 ? freqDiff : a.word.length - b.word.length;
+            });
+            const newSet = new Set(sortedWords);
+            this.wordMap.set(letter, newSet);
+            count += newSet.size;
         }
 
         return count;

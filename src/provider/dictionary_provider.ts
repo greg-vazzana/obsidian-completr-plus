@@ -2,65 +2,69 @@ import { CompletrSettings, WordInsertionMode } from "../settings";
 import { Suggestion, SuggestionContext, SuggestionProvider } from "./provider";
 import { maybeLowerCase } from "../editor_helpers";
 
+export interface Word {
+    word: string;
+    frequency: number;
+}
+
 export abstract class DictionaryProvider implements SuggestionProvider {
-
-    abstract readonly wordMap: Map<string, Iterable<string>>;
-
+    abstract readonly wordMap: Map<string, Set<Word>>;
     abstract isEnabled(settings: CompletrSettings): boolean;
 
     getSuggestions(context: SuggestionContext, settings: CompletrSettings): Suggestion[] {
         if (!this.isEnabled(settings) || !context.query || context.query.length < settings.minWordTriggerLength)
             return [];
 
-        const ignoreCase = settings.wordInsertionMode != WordInsertionMode.MATCH_CASE_REPLACE;
+        const firstChar = context.query.charAt(0);
 
+        const ignoreCase = settings.wordInsertionMode !== WordInsertionMode.MATCH_CASE_REPLACE;
         let query = maybeLowerCase(context.query, ignoreCase);
         const ignoreDiacritics = settings.ignoreDiacriticsWhenFiltering;
         if (ignoreDiacritics)
             query = removeDiacritics(query);
 
-        const firstChar = query.charAt(0);
-
-        //This is an array of arrays to avoid unnecessarily creating a new huge array containing all elements of both arrays.
-        const list = ignoreCase ?
-            [(this.wordMap.get(firstChar) ?? []), (this.wordMap.get(firstChar.toUpperCase()) ?? [])] //Get both lists if we're ignoring case
-            :
-            [this.wordMap.get(firstChar) ?? []];
+        //This is an array of sets to avoid unnecessarily creating a new huge set containing all elements of both sets.
+        const wordMaps = ignoreCase ?
+            [this.wordMap.get(firstChar) ?? new Set(), this.wordMap.get(firstChar.toUpperCase()) ?? new Set()] //Get both sets if we're ignoring case
+            : [this.wordMap.get(firstChar) ?? new Set()];
 
         if (ignoreDiacritics) {
-            // This additionally adds all words that start with a diacritic, which the two maps above might not cover.
+            // This additionally adds all words that start with a diacritic, which the two sets above might not cover.
             for (let [key, value] of this.wordMap.entries()) {
                 let keyFirstChar = maybeLowerCase(key.charAt(0), ignoreCase);
 
                 if (removeDiacritics(keyFirstChar) === firstChar)
-                    list.push(value);
+                    wordMaps.push(value);
             }
         }
 
-        if (!list || list.length < 1)
+        if (!wordMaps || wordMaps.length < 1)
             return [];
 
-        //TODO: Rank those who match case higher
         const result: Suggestion[] = [];
-        for (let el of list) {
-            filterMapIntoArray(result, el, s => {
-                    let match = maybeLowerCase(s, ignoreCase);
+        for (let wordSet of wordMaps) {
+            filterMapIntoArray(result, wordSet,
+                wordObj => {
+                    let match = maybeLowerCase(wordObj.word, ignoreCase);
                     if (ignoreDiacritics)
                         match = removeDiacritics(match);
                     return match.startsWith(query);
                 },
-                settings.wordInsertionMode === WordInsertionMode.IGNORE_CASE_APPEND ?
-                    //In append mode we combine the query with the suggestions
-                    (s => Suggestion.fromString(context.query + s.substring(query.length, s.length))) :
-                    (s => Suggestion.fromString(s))
+                wordObj => {
+                    const suggestion = settings.wordInsertionMode === WordInsertionMode.IGNORE_CASE_APPEND
+                        ? Suggestion.fromString(context.query + wordObj.word.substring(query.length))
+                        : Suggestion.fromString(wordObj.word);
+                    (suggestion as any).rating = wordObj.frequency * 1000 - wordObj.word.length;
+                    return suggestion;
+                }
             );
         }
 
-        return result.sort((a, b) => a.displayName.length - b.displayName.length);
+        return result.sort((a, b) => (b as any).rating - (a as any).rating);
     }
 }
 
-const DIACRITICS_REGEX = /[\u0300-\u036f]/g
+const DIACRITICS_REGEX = /[\u0300-\u036f]/g;
 
 function removeDiacritics(str: string): string {
     return str.normalize("NFD").replace(DIACRITICS_REGEX, "");
