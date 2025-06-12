@@ -17,6 +17,7 @@ interface Word {
     first_letter: string;
     source_id: number;    // Foreign key to Source table
     created_at: string;   // ISO timestamp
+    frequency: number;    // Number of occurrences
 }
 
 interface WordRow {
@@ -72,38 +73,52 @@ export class DatabaseService {
         }
 
         return new Promise<void>((resolve, reject) => {
-            const request = indexedDB.open(this.dbName, 4); // Increment version for new schema
+            const request = indexedDB.open(this.dbName, 5); // Increment version for new schema
 
             request.onerror = () => reject(request.error);
 
             request.onupgradeneeded = (event) => {
                 const db = (event.target as IDBOpenDBRequest).result;
+                const oldVersion = event.oldVersion;
 
-                // Delete old stores if they exist
-                if (db.objectStoreNames.contains('words')) {
-                    db.deleteObjectStore('words');
-                }
-                if (db.objectStoreNames.contains('word_lists')) {
-                    db.deleteObjectStore('word_lists');
-                }
-                if (db.objectStoreNames.contains('latex_commands')) {
-                    db.deleteObjectStore('latex_commands');
-                }
+                // For fresh database (version 0)
+                if (oldVersion < 1) {
+                    const sourceStore = db.createObjectStore('sources', { keyPath: 'id', autoIncrement: true });
+                    sourceStore.createIndex('name', 'name', { unique: true });
+                    sourceStore.createIndex('type', 'type');
 
-                // Create new stores with updated schema
-                const sourceStore = db.createObjectStore('sources', { keyPath: 'id', autoIncrement: true });
-                sourceStore.createIndex('name', 'name', { unique: true });
-                sourceStore.createIndex('type', 'type');
+                    const wordStore = db.createObjectStore('words', { keyPath: 'id', autoIncrement: true });
+                    wordStore.createIndex('word', 'word', { unique: true });
+                    wordStore.createIndex('first_letter', 'first_letter');
+                    wordStore.createIndex('source_id', 'source_id');
 
-                const wordStore = db.createObjectStore('words', { keyPath: 'id', autoIncrement: true });
-                wordStore.createIndex('word', 'word', { unique: true });
-                wordStore.createIndex('first_letter', 'first_letter');
-                wordStore.createIndex('source_id', 'source_id');
-
-                if (!db.objectStoreNames.contains('latex_commands')) {
                     const latexStore = db.createObjectStore('latex_commands', { keyPath: 'id', autoIncrement: true });
                     latexStore.createIndex('first_letter', 'first_letter');
                     latexStore.createIndex('command', 'command', { unique: true });
+                }
+
+                // Add frequency column in version 5
+                if (oldVersion < 5) {
+                    const transaction = (event.target as IDBOpenDBRequest).transaction;
+                    const wordStore = transaction.objectStore('words');
+                    
+                    if (!wordStore.indexNames.contains('frequency')) {
+                        wordStore.createIndex('frequency', 'frequency');
+                    }
+
+                    // Update all existing records to have frequency = 1
+                    const cursorRequest = wordStore.openCursor();
+                    cursorRequest.onsuccess = (e: Event) => {
+                        const cursor = (e.target as IDBRequest).result;
+                        if (cursor) {
+                            const value = cursor.value;
+                            if (!value.frequency) {
+                                value.frequency = 1;
+                                cursor.update(value);
+                            }
+                            cursor.continue();
+                        }
+                    };
                 }
             };
 
@@ -248,7 +263,8 @@ export class DatabaseService {
                     word,
                     first_letter: word.charAt(0),
                     source_id: sourceId,
-                    created_at: new Date().toISOString()
+                    created_at: new Date().toISOString(),
+                    frequency: 1
                 };
 
                 await new Promise<void>((resolve, reject) => {
@@ -257,7 +273,7 @@ export class DatabaseService {
                     request.onsuccess = () => resolve();
                 });
             }
-            // If word exists, keep original source_id as requested
+            // If word exists, keep original source_id and frequency as requested
         });
     }
 
