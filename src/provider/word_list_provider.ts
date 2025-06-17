@@ -1,5 +1,6 @@
 import { CompletrSettings, intoCompletrPath } from "../settings";
-import { DictionaryProvider, Word } from "./dictionary_provider";
+import { DictionaryProvider } from "./dictionary_provider";
+import { Word } from "../db/database";
 import { Vault } from "obsidian";
 import { SuggestionBlacklist } from "./blacklist";
 import { DatabaseService } from "../db/database";

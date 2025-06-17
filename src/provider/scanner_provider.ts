@@ -1,6 +1,7 @@
 import { TFile, Vault } from "obsidian";
 import { CompletrSettings } from "../settings";
-import { DictionaryProvider, Word } from "./dictionary_provider";
+import { DictionaryProvider } from "./dictionary_provider";
+import { Word } from "../db/database";
 import { SuggestionBlacklist } from "./blacklist";
 import { DatabaseService } from "../db/database";
 

@@ -1,11 +1,7 @@
 import { CompletrSettings, WordInsertionMode } from "../settings";
 import { Suggestion, SuggestionContext, SuggestionProvider } from "./provider";
 import { maybeLowerCase } from "../editor_helpers";
-
-export interface Word {
-    word: string;
-    frequency: number;
-}
+import { Word } from "../db/database";
 
 export abstract class DictionaryProvider implements SuggestionProvider {
     abstract readonly wordMap: Map<string, Set<Word>>;

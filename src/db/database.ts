@@ -11,13 +11,13 @@ interface Source {
     file_exists?: boolean; // for word_list type
 }
 
-interface Word {
-    id?: number;
+export interface Word {
     word: string;
-    first_letter: string;
-    source_id: number;    // Foreign key to Source table
-    created_at: string;   // ISO timestamp
-    frequency: number;    // Number of occurrences
+    frequency: number;
+    id?: number;
+    first_letter?: string;
+    source_id?: number;    // Foreign key to Source table
+    created_at?: string;   // ISO timestamp
 }
 
 interface WordRow {
@@ -261,10 +261,10 @@ export class DatabaseService {
             if (!existing) {
                 const newWord: Word = {
                     word,
+                    frequency: 1,
                     first_letter: word.charAt(0),
                     source_id: sourceId,
-                    created_at: new Date().toISOString(),
-                    frequency: 1
+                    created_at: new Date().toISOString()
                 };
 
                 await new Promise<void>((resolve, reject) => {
