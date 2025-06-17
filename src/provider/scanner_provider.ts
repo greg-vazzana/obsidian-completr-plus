@@ -64,20 +64,23 @@ class ScannerSuggestionProvider extends DictionaryProvider {
             throw new Error('Scanner not properly initialized: db not set');
         }
         this.wordMap.clear();
-        // Load all words and organize them by first letter in memory
-        const letters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-        for (const letter of letters) {
-            const words = await this.db.getWordsByFirstLetter(letter);
-            if (words.length > 0) {
-                const wordSet = new Set<Word>();
-                words.forEach(word => {
-                    if (!SuggestionBlacklist.hasText(word)) {
-                        wordSet.add({ word, frequency: 1 });
-                    }
-                });
-                if (wordSet.size > 0) {
-                    this.wordMap.set(letter, wordSet);
+        
+        // Load all words grouped by first letter from database
+        const wordsGrouped = await this.db.getAllWordsGroupedByFirstLetter();
+        
+        for (const [firstLetter, wordList] of wordsGrouped.entries()) {
+            const wordSet = new Set<Word>();
+            for (const word of wordList) {
+                if (!SuggestionBlacklist.hasText(word.word)) {
+                    // Preserve the actual frequency from database
+                    wordSet.add({
+                        word: word.word,
+                        frequency: word.frequency
+                    });
                 }
+            }
+            if (wordSet.size > 0) {
+                this.wordMap.set(firstLetter, wordSet);
             }
         }
     }

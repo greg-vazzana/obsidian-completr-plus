@@ -291,6 +291,29 @@ export class DatabaseService {
         });
     }
 
+    async getAllWordsGroupedByFirstLetter(): Promise<Map<string, Word[]>> {
+        return this.transaction('words', 'readonly', async (store) => {
+            return new Promise<Map<string, Word[]>>((resolve, reject) => {
+                const request = store.getAll();
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => {
+                    const words = request.result as Word[];
+                    const grouped = new Map<string, Word[]>();
+                    
+                    for (const word of words) {
+                        const firstLetter = word.first_letter || word.word.charAt(0);
+                        if (!grouped.has(firstLetter)) {
+                            grouped.set(firstLetter, []);
+                        }
+                        grouped.get(firstLetter)!.push(word);
+                    }
+                    
+                    resolve(grouped);
+                };
+            });
+        });
+    }
+
     private async deleteWordsBySource(sourceId: number): Promise<void> {
         await this.transaction('words', 'readwrite', async (store) => {
             const index = store.index('source_id');
