@@ -13,6 +13,162 @@ import { Latex } from "./provider/latex_provider";
 import { Callout } from "./provider/callout_provider";
 import { SuggestionBlacklist } from "./provider/blacklist";
 import PeriodInserter from "./period_inserter";
+import { DatabaseService } from "./db/database";
+
+class LiveWordTracker {
+    private db: DatabaseService | null = null;
+    private settings: CompletrSettings;
+    private batchUpdates: Map<string, number> = new Map();
+    private batchTimeout: NodeJS.Timeout | null = null;
+    private readonly BATCH_DELAY_MS = 1000; // 1 second delay for batching
+
+    constructor(settings: CompletrSettings) {
+        this.settings = settings;
+    }
+
+    setDatabase(db: DatabaseService) {
+        this.db = db;
+    }
+
+    updateSettings(settings: CompletrSettings) {
+        this.settings = settings;
+    }
+
+    async trackWordCompletion(editor: any, oldCursor: EditorPosition, newCursor: EditorPosition): Promise<void> {
+        if (!this.db || !this.settings.scanEnabled || !this.settings.liveWordTracking) {
+            console.log('LiveWordTracker: Skipping - db:', !!this.db, 'scanEnabled:', this.settings.scanEnabled, 'liveWordTracking:', this.settings.liveWordTracking);
+            return;
+        }
+
+        // Only track when cursor moves forward (typing, not navigation)
+        if (newCursor.line !== oldCursor.line || newCursor.ch <= oldCursor.ch) {
+            console.log('LiveWordTracker: Skipping - not forward movement');
+            return;
+        }
+
+        // Check if we just completed a word by typing a non-word character
+        if (newCursor.ch === 0) return;
+
+        const currentChar = editor.getRange(
+            { line: newCursor.line, ch: newCursor.ch - 1 },
+            { line: newCursor.line, ch: newCursor.ch }
+        );
+
+        console.log('LiveWordTracker: Current char:', currentChar, 'isWordChar:', this.isWordCharacter(currentChar));
+
+        // If current character is not a word character, we might have completed a word
+        if (!this.isWordCharacter(currentChar)) {
+            const completedWord = this.extractCompletedWord(editor, newCursor);
+            console.log('LiveWordTracker: Completed word:', completedWord);
+            if (completedWord && completedWord.length >= this.settings.minWordLength) {
+                console.log('LiveWordTracker: Incrementing frequency for:', completedWord);
+                await this.incrementWordFrequency(completedWord);
+            }
+        }
+    }
+
+    private isWordCharacter(char: string): boolean {
+        // Use the same character regex as the settings
+        return new RegExp(`[${this.settings.characterRegex}]`, "u").test(char);
+    }
+
+    private extractCompletedWord(editor: any, cursor: EditorPosition): string | null {
+        const line = editor.getLine(cursor.line);
+        console.log('LiveWordTracker: Line:', line, 'Cursor ch:', cursor.ch);
+        
+        // Start from the character before the current cursor (which should be the non-word character we just typed)
+        let wordEnd = cursor.ch - 1;
+        let wordStart = wordEnd - 1;
+
+        // Move backwards to find the start of the word
+        while (wordStart >= 0 && this.isWordCharacter(line.charAt(wordStart))) {
+            wordStart--;
+        }
+        wordStart++; // Move to the first character of the word
+
+        // Extract the word (from wordStart to wordEnd, not including the non-word character)
+        const word = line.substring(wordStart, wordEnd);
+        
+        console.log('LiveWordTracker: Extracted word:', `"${word}"`, 'from positions', wordStart, 'to', wordEnd);
+        
+        // Validate word (same pattern as scanner)
+        if (word.length === 0 || !word.match(/^[\p{L}\d]+(?:[-'_][\p{L}\d]+)*(?:\.[\p{L}\d]+)*$/u)) {
+            console.log('LiveWordTracker: Word validation failed - length:', word.length, 'regex match:', !!word.match(/^[\p{L}\d]+(?:[-'_][\p{L}\d]+)*(?:\.[\p{L}\d]+)*$/u));
+            return null;
+        }
+
+        return word;
+    }
+
+    private async incrementWordFrequency(word: string): Promise<void> {
+        if (!this.db) return;
+
+        // Check blacklist
+        if (SuggestionBlacklist.hasText(word)) {
+            return;
+        }
+
+        try {
+            // Get scan source ID
+            const scanSourceId = await this.db.getScanSourceId();
+            if (!scanSourceId) return;
+
+            // Add to batch updates
+            const currentCount = this.batchUpdates.get(word) || 0;
+            this.batchUpdates.set(word, currentCount + 1);
+
+            // Update in-memory frequency immediately for Scanner provider
+            Scanner.incrementWordFrequency(word);
+
+            // Schedule batch database update
+            this.scheduleBatchUpdate(scanSourceId);
+
+        } catch (error) {
+            console.error('Error tracking word completion:', error);
+        }
+    }
+
+    private scheduleBatchUpdate(scanSourceId: number): void {
+        if (this.batchTimeout) {
+            clearTimeout(this.batchTimeout);
+        }
+
+        this.batchTimeout = setTimeout(async () => {
+            await this.flushBatchUpdates(scanSourceId);
+        }, this.BATCH_DELAY_MS);
+    }
+
+    private async flushBatchUpdates(scanSourceId: number): Promise<void> {
+        if (!this.db || this.batchUpdates.size === 0) {
+            return;
+        }
+
+        try {
+            // Process all batched updates
+            for (const [word, incrementBy] of this.batchUpdates) {
+                await this.db.addOrIncrementWord(word, scanSourceId, incrementBy);
+            }
+
+            // Clear the batch
+            this.batchUpdates.clear();
+            this.batchTimeout = null;
+
+        } catch (error) {
+            console.error('Error flushing batch updates:', error);
+        }
+    }
+
+    async onUnload(): Promise<void> {
+        // Flush any pending updates before unloading
+        if (this.batchTimeout) {
+            clearTimeout(this.batchTimeout);
+            const scanSourceId = await this.db?.getScanSourceId();
+            if (scanSourceId) {
+                await this.flushBatchUpdates(scanSourceId);
+            }
+        }
+    }
+}
 
 export default class CompletrPlugin extends Plugin {
 
@@ -21,13 +177,18 @@ export default class CompletrPlugin extends Plugin {
     private snippetManager: SnippetManager;
     private _suggestionPopup: SuggestionPopup;
     private _periodInserter: PeriodInserter;
+    private _liveWordTracker: LiveWordTracker;
 
     async onload() {
+        this.snippetManager = new SnippetManager();
+        this._periodInserter = new PeriodInserter();
+        
+        // Initialize LiveWordTracker early so it's available in loadSettings
+        this._liveWordTracker = new LiveWordTracker(DEFAULT_SETTINGS); // Use defaults initially
+        
         await this.loadSettings();
 
-        this.snippetManager = new SnippetManager();
         this._suggestionPopup = new SuggestionPopup(this.app, this.settings, this.snippetManager);
-        this._periodInserter = new PeriodInserter();
 
         this.registerEditorSuggest(this._suggestionPopup);
 
@@ -36,7 +197,7 @@ export default class CompletrPlugin extends Plugin {
         this.app.workspace.onLayoutReady(() => FrontMatter.loadYAMLKeyCompletions(this.app.metadataCache, this.app.vault.getMarkdownFiles()));
 
         this.registerEditorExtension(markerStateField);
-        this.registerEditorExtension(EditorView.updateListener.of(new CursorActivityListener(this.snippetManager, this._suggestionPopup, this._periodInserter).listener));
+        this.registerEditorExtension(EditorView.updateListener.of(new CursorActivityListener(this.snippetManager, this._suggestionPopup, this._periodInserter, this._liveWordTracker).listener));
 
         this.addSettingTab(new CompletrSettingsTab(this.app, this));
 
@@ -354,6 +515,9 @@ export default class CompletrPlugin extends Plugin {
     async onunload() {
         // Clean up any resources
         this.snippetManager.onunload();
+        if (this._liveWordTracker) {
+            await this._liveWordTracker.onUnload();
+        }
     }
 
     async loadSettings() {
@@ -371,6 +535,12 @@ export default class CompletrPlugin extends Plugin {
             // Then initialize scanner
             Scanner.setVault(this.app.vault);
             await Scanner.initialize();
+            
+            // Set up live word tracker with database and updated settings
+            const db = new DatabaseService(this.app.vault);
+            await db.initialize();
+            this._liveWordTracker.setDatabase(db);
+            this._liveWordTracker.updateSettings(this.settings);
             
             await Latex.loadCommands(this.app.vault);
             await Callout.loadSuggestions(this.app.vault, this);
@@ -402,10 +572,10 @@ export default class CompletrPlugin extends Plugin {
     }
 
     private readonly onFileOpened = (file: TFile) => {
-        if (!file || !(file instanceof TFile) || !this.settings.fileScannerScanCurrent)
+        if (!file || !(file instanceof TFile) || !this.settings.scanEnabled)
             return;
 
-        Scanner.scanFile(this.settings, file, true);
+        Scanner.scanFile(this.settings, file);
     }
 }
 
@@ -414,14 +584,17 @@ class CursorActivityListener {
     private readonly snippetManager: SnippetManager;
     private readonly suggestionPopup: SuggestionPopup;
     private readonly periodInserter: PeriodInserter;
+    private readonly liveWordTracker: LiveWordTracker;
 
     private cursorTriggeredByChange = false;
     private lastCursorLine = -1;
+    private lastCursorPosition: EditorPosition | null = null;
 
-    constructor(snippetManager: SnippetManager, suggestionPopup: SuggestionPopup, periodInserter: PeriodInserter) {
+    constructor(snippetManager: SnippetManager, suggestionPopup: SuggestionPopup, periodInserter: PeriodInserter, liveWordTracker: LiveWordTracker) {
         this.snippetManager = snippetManager;
         this.suggestionPopup = suggestionPopup;
         this.periodInserter = periodInserter;
+        this.liveWordTracker = liveWordTracker;
     }
 
     readonly listener = (update: ViewUpdate) => {
@@ -430,7 +603,8 @@ class CursorActivityListener {
         }
 
         if (update.selectionSet) {
-            this.handleCursorActivity(posFromIndex(update.state.doc, update.state.selection.main.head))
+            const newCursor = posFromIndex(update.state.doc, update.state.selection.main.head);
+            this.handleCursorActivity(newCursor, update);
         }
     };
 
@@ -438,8 +612,17 @@ class CursorActivityListener {
         this.cursorTriggeredByChange = true;
     };
 
-    private readonly handleCursorActivity = (cursor: EditorPosition) => {
+    private readonly handleCursorActivity = async (cursor: EditorPosition, update: ViewUpdate) => {
         this.periodInserter.cancelInsertPeriod()
+        
+        // Track word completion if we have a previous cursor position and document changed
+        if (this.lastCursorPosition && this.cursorTriggeredByChange && update.view.dom) {
+            const editor = this.getEditorFromView(update.view);
+            console.log('CursorActivityListener: Editor found:', !!editor);
+            if (editor) {
+                await this.liveWordTracker.trackWordCompletion(editor, this.lastCursorPosition, cursor);
+            }
+        }
         
         // This prevents the popup from opening when switching to the previous line
         const didChangeLine = this.lastCursorLine != cursor.line;
@@ -455,10 +638,42 @@ class CursorActivityListener {
         // Prevents the suggestion popup from flickering when typing
         if (this.cursorTriggeredByChange) {
             this.cursorTriggeredByChange = false;
-            if (!didChangeLine)
+            if (!didChangeLine) {
+                this.lastCursorPosition = cursor;
                 return;
+            }
         }
 
         this.suggestionPopup.close();
+        this.lastCursorPosition = cursor;
     };
+
+    private getEditorFromView(view: EditorView): any {
+        // Try multiple ways to get the Obsidian editor from the CodeMirror view
+        
+        // Method 1: Try to get from the view's dom element
+        const editorEl = view.dom.closest('.cm-editor');
+        if (editorEl) {
+            const obsidianView = (editorEl as any).cmView?.obsidianView;
+            if (obsidianView?.editor) {
+                return obsidianView.editor;
+            }
+        }
+        
+        // Method 2: Try to get from active view
+        const app = (window as any).app;
+        if (app) {
+            const activeView = app.workspace.getActiveViewOfType(MarkdownView);
+            if (activeView?.editor) {
+                return activeView.editor;
+            }
+        }
+        
+        // Method 3: Try to get from the view itself
+        if ((view as any).editor) {
+            return (view as any).editor;
+        }
+        
+        return null;
+    }
 }

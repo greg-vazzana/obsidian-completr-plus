@@ -198,6 +198,35 @@ class ScannerSuggestionProvider extends DictionaryProvider {
     private async addWord(word: string) {
         await this.addOrIncrementWord(word);
     }
+
+    /**
+     * Public method to increment word frequency in memory for live tracking
+     * This is used by the live word tracker to immediately update frequencies
+     * without waiting for the next full scan
+     */
+    incrementWordFrequency(word: string): void {
+        if (!word || SuggestionBlacklist.hasText(word)) {
+            return;
+        }
+
+        const firstLetter = word.charAt(0);
+        const wordsForLetter = this.wordMap.get(firstLetter);
+        
+        if (wordsForLetter) {
+            const existingWord = wordsForLetter.get(word);
+            if (existingWord) {
+                existingWord.frequency += 1;
+            } else {
+                // Add new word to memory with frequency 1
+                wordsForLetter.set(word, { word, frequency: 1 });
+            }
+        } else {
+            // Create new letter group and add word
+            const newWordsForLetter = new Map<string, Word>();
+            newWordsForLetter.set(word, { word, frequency: 1 });
+            this.wordMap.set(firstLetter, newWordsForLetter);
+        }
+    }
 }
 
 // Create a singleton instance but don't initialize it with a vault yet

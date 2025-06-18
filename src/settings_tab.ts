@@ -289,6 +289,16 @@ export default class CompletrSettingsTab extends PluginSettingTab {
         this.createEnabledSetting("scanEnabled", "Whether or not the scanner is enabled", containerEl);
 
         new Setting(containerEl)
+            .setName("Live word tracking")
+            .setDesc("When enabled, word frequencies are updated in real-time as you type. Words will be tracked and their frequency incremented immediately when you complete them by typing a space or punctuation.")
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.liveWordTracking)
+                .onChange(async val => {
+                    this.plugin.settings.liveWordTracking = val;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
             .setName("Word list provider")
             .setHeading();
 

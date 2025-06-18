@@ -42,4 +42,29 @@ Here's a sentence with, special characters. Zürich-based companies and München
 - Test_Größe.txt
 - Straße2_West
 
-Each of these cases should be properly detected as complete words, respecting word boundaries and special characters. 
+Each of these cases should be properly detected as complete words, respecting word boundaries and special characters.
+
+# Live Word Tracking Test
+
+This is a test document to verify live word tracking functionality.
+
+## English Words
+hello world testing frequency tracking
+hello hello hello
+world world
+testing
+
+## Unicode Characters
+café résumé naïve
+こんにちは 世界
+Привет мир
+
+## Words with Special Characters
+word-with-hyphens
+word_with_underscores
+word'with'apostrophes
+file.txt
+test.example.com
+
+## Mixed Content
+Testing mixed content with English, café, and こんにちは in the same sentence. 
