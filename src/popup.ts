@@ -133,12 +133,16 @@ export default class SuggestionPopup extends EditorSuggest<Suggestion> {
             el.style.setProperty("--completr-suggestion-color", value.color);
         }
 
+        // Create content wrapper for icon and text
+        const content = el.doc.createElement("div");
+        content.addClass("completr-suggestion-content");
+
         // Add the icon.
         if (value.icon != null) {
             const icon = getIcon(value.icon);
             if (icon != null) {
                 icon.addClass("completr-suggestion-icon");
-                el.appendChild(icon);
+                content.appendChild(icon);
             }
         }
 
@@ -146,7 +150,17 @@ export default class SuggestionPopup extends EditorSuggest<Suggestion> {
         const text = el.doc.createElement("div");
         text.addClass("completr-suggestion-text");
         text.setText(value.displayName);
-        el.appendChild(text);
+        content.appendChild(text);
+
+        el.appendChild(content);
+
+        // Add the frequency badge if frequency > 1
+        if (value.frequency != null && value.frequency > 1) {
+            const frequencyBadge = el.doc.createElement("div");
+            frequencyBadge.addClass("completr-frequency-badge");
+            frequencyBadge.setText(value.frequency.toString());
+            el.appendChild(frequencyBadge);
+        }
     }
 
     selectSuggestion(value: Suggestion, evt: MouseEvent | KeyboardEvent): void {

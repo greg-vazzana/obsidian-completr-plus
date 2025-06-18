@@ -51,6 +51,12 @@ export abstract class DictionaryProvider implements SuggestionProvider {
                         ? Suggestion.fromString(context.query + wordObj.word.substring(query.length))
                         : Suggestion.fromString(wordObj.word);
                     (suggestion as any).rating = wordObj.frequency * 1000 - wordObj.word.length;
+                    
+                    // Add frequency to suggestion if > 1
+                    if (wordObj.frequency > 1) {
+                        suggestion.frequency = wordObj.frequency;
+                    }
+                    
                     return suggestion;
                 }
             );

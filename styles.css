@@ -10,10 +10,20 @@ body {
 
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: 8px;
 }
 
 .completr-suggestion-item > * {
     display: inline-block;
+}
+
+.completr-suggestion-content {
+    display: flex;
+    align-items: center;
+    flex-grow: 1;
+    overflow: hidden;
+    min-width: 0;
 }
 
 .completr-suggestion-icon {
@@ -26,6 +36,8 @@ body {
 }
 
 .completr-suggestion-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .completr-suggestion-placeholder {
@@ -107,4 +119,17 @@ span.completr-suggestion-placeholder5 span {
 
 span.completr-suggestion-placeholder6 span {
     border-color: navajowhite;
+}
+
+.completr-frequency-badge {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border-radius: 12px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    flex-shrink: 0;
+    min-width: 18px;
+    text-align: center;
+    line-height: 1.2;
 }
