@@ -62,7 +62,12 @@ export abstract class DictionaryProvider implements SuggestionProvider {
             );
         }
 
-        return result.sort((a, b) => (b as any).rating - (a as any).rating);
+        const sortedResults = result.sort((a, b) => (b as any).rating - (a as any).rating);
+        
+        // Apply suggestion limit if set (0 means unlimited)
+        return settings.maxSuggestions > 0 
+            ? sortedResults.slice(0, settings.maxSuggestions)
+            : sortedResults;
     }
 }
 

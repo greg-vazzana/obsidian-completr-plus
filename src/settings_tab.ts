@@ -93,6 +93,30 @@ export default class CompletrSettingsTab extends PluginSettingTab {
             });
 
         new Setting(containerEl)
+            .setName("Suggestion limit")
+            .setDesc("Maximum number of suggestions to show (0 = unlimited). Higher values may impact performance with large word lists.")
+            .addText(text => {
+                text.inputEl.type = "number";
+                text
+                    .setValue(this.plugin.settings.maxSuggestions + "")
+                    .onChange(async val => {
+                        if (!val || val.length < 1) {
+                            this.plugin.settings.maxSuggestions = 0;
+                            await this.plugin.saveSettings();
+                            return;
+                        }
+
+                        const numVal = parseInt(val);
+                        if (numVal < 0) {
+                            this.plugin.settings.maxSuggestions = 0;
+                        } else {
+                            this.plugin.settings.maxSuggestions = numVal;
+                        }
+                        await this.plugin.saveSettings();
+                    });
+            });
+
+        new Setting(containerEl)
             .setName("Word insertion mode")
             .setDesc("The insertion mode that is used. Ignore-case would suggest 'Hello' if the typed text is 'hello', match-case would not. " +
                 "Append would complete 'Hell' with 'Hello' while replace would complete it with 'hello' instead (if only 'hello' was a known word). Only used by the file scanner and word list provider.")
