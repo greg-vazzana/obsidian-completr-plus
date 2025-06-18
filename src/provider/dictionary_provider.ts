@@ -4,7 +4,7 @@ import { maybeLowerCase } from "../editor_helpers";
 import { Word } from "../db/database";
 
 export abstract class DictionaryProvider implements SuggestionProvider {
-    abstract readonly wordMap: Map<string, Set<Word>>;
+    abstract readonly wordMap: Map<string, Map<string, Word>>;
     abstract isEnabled(settings: CompletrSettings): boolean;
 
     getSuggestions(context: SuggestionContext, settings: CompletrSettings): Suggestion[] {
@@ -19,13 +19,13 @@ export abstract class DictionaryProvider implements SuggestionProvider {
         if (ignoreDiacritics)
             query = removeDiacritics(query);
 
-        //This is an array of sets to avoid unnecessarily creating a new huge set containing all elements of both sets.
+        //This is an array of maps to avoid unnecessarily creating a new huge map containing all elements of both maps.
         const wordMaps = ignoreCase ?
-            [this.wordMap.get(firstChar) ?? new Set(), this.wordMap.get(firstChar.toUpperCase()) ?? new Set()] //Get both sets if we're ignoring case
-            : [this.wordMap.get(firstChar) ?? new Set()];
+            [this.wordMap.get(firstChar) ?? new Map(), this.wordMap.get(firstChar.toUpperCase()) ?? new Map()] //Get both maps if we're ignoring case
+            : [this.wordMap.get(firstChar) ?? new Map()];
 
         if (ignoreDiacritics) {
-            // This additionally adds all words that start with a diacritic, which the two sets above might not cover.
+            // This additionally adds all words that start with a diacritic, which the two maps above might not cover.
             for (let [key, value] of this.wordMap.entries()) {
                 let keyFirstChar = maybeLowerCase(key.charAt(0), ignoreCase);
 
@@ -38,8 +38,8 @@ export abstract class DictionaryProvider implements SuggestionProvider {
             return [];
 
         const result: Suggestion[] = [];
-        for (let wordSet of wordMaps) {
-            filterMapIntoArray(result, wordSet,
+        for (let wordMap of wordMaps) {
+            filterMapIntoArray(result, wordMap.values(),
                 wordObj => {
                     let match = maybeLowerCase(wordObj.word, ignoreCase);
                     if (ignoreDiacritics)

@@ -277,6 +277,42 @@ export class DatabaseService {
         });
     }
 
+    async addOrIncrementWord(word: string, sourceId: number, incrementBy: number = 1): Promise<void> {
+        await this.transaction('words', 'readwrite', async (store) => {
+            const index = store.index('word');
+            const existing = await new Promise<Word>((resolve) => {
+                const request = index.get(word);
+                request.onsuccess = () => resolve(request.result);
+            });
+
+            if (!existing) {
+                // Add new word with the specified increment as initial frequency
+                const newWord: Word = {
+                    word,
+                    frequency: incrementBy,
+                    first_letter: word.charAt(0),
+                    source_id: sourceId,
+                    created_at: new Date().toISOString()
+                };
+
+                await new Promise<void>((resolve, reject) => {
+                    const request = store.add(newWord);
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => resolve();
+                });
+            } else {
+                // Increment frequency of existing word
+                existing.frequency += incrementBy;
+                
+                await new Promise<void>((resolve, reject) => {
+                    const request = store.put(existing);
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => resolve();
+                });
+            }
+        });
+    }
+
     async getWordsByFirstLetter(letter: string): Promise<string[]> {
         return this.transaction('words', 'readonly', async (store) => {
             return new Promise<string[]>((resolve, reject) => {
@@ -314,6 +350,30 @@ export class DatabaseService {
         });
     }
 
+    async getAllWordsBySource(sourceId: number): Promise<Map<string, Word[]>> {
+        return this.transaction('words', 'readonly', async (store) => {
+            return new Promise<Map<string, Word[]>>((resolve, reject) => {
+                const index = store.index('source_id');
+                const request = index.getAll(sourceId);
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => {
+                    const words = request.result as Word[];
+                    const grouped = new Map<string, Word[]>();
+                    
+                    for (const word of words) {
+                        const firstLetter = word.first_letter || word.word.charAt(0);
+                        if (!grouped.has(firstLetter)) {
+                            grouped.set(firstLetter, []);
+                        }
+                        grouped.get(firstLetter)!.push(word);
+                    }
+                    
+                    resolve(grouped);
+                };
+            });
+        });
+    }
+
     private async deleteWordsBySource(sourceId: number): Promise<void> {
         await this.transaction('words', 'readwrite', async (store) => {
             const index = store.index('source_id');
@@ -332,6 +392,21 @@ export class DatabaseService {
                 });
             }
         });
+    }
+
+    async deleteScanWords(): Promise<void> {
+        // Find the scan source ID and delete only its words
+        const scanSource = await this.transaction('sources', 'readonly', async (store) => {
+            const index = store.index('name');
+            return new Promise<Source>((resolve) => {
+                const request = index.get('scan');
+                request.onsuccess = () => resolve(request.result);
+            });
+        });
+
+        if (scanSource && scanSource.id) {
+            await this.deleteWordsBySource(scanSource.id);
+        }
     }
 
     async deleteAllWords(): Promise<void> {
@@ -480,6 +555,37 @@ export class DatabaseService {
                 const request = store.count();
                 request.onerror = () => reject(request.error);
                 request.onsuccess = () => resolve(request.result as number);
+            });
+        });
+    }
+
+    async getScanSourceId(): Promise<number | null> {
+        return this.transaction('sources', 'readonly', async (store) => {
+            const index = store.index('name');
+            return new Promise<number | null>((resolve) => {
+                const request = index.get('scan');
+                request.onsuccess = () => {
+                    const result = request.result;
+                    resolve(result ? result.id : null);
+                };
+            });
+        });
+    }
+
+    async getWordListSourceIds(): Promise<number[]> {
+        return this.transaction('sources', 'readonly', async (store) => {
+            return new Promise<number[]>((resolve, reject) => {
+                const index = store.index('type');
+                const request = index.getAll('word_list');
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => {
+                    const sources = request.result as Source[];
+                    const sourceIds = sources
+                        .filter(source => source.file_exists !== false) // Only include existing files
+                        .map(source => source.id!)
+                        .filter(id => id !== undefined);
+                    resolve(sourceIds);
+                };
             });
         });
     }

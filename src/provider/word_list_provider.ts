@@ -9,7 +9,7 @@ const WORD_LISTS_FOLDER_PATH = "wordLists";
 const NEW_LINE_REGEX = /\r?\n/;
 
 class WordListSuggestionProvider extends DictionaryProvider {
-    readonly wordMap: Map<string, Set<Word>> = new Map();
+    readonly wordMap: Map<string, Map<string, Word>> = new Map();
     private db: DatabaseService | null = null;
     private vault: Vault | null = null;
 
@@ -76,30 +76,74 @@ class WordListSuggestionProvider extends DictionaryProvider {
                 await this.db.addWord(line, sourceId);
 
                 // Update in-memory map
-                let wordSet = this.wordMap.get(line.charAt(0));
-                if (!wordSet) {
-                    wordSet = new Set<Word>();
-                    this.wordMap.set(line.charAt(0), wordSet);
+                const firstLetter = line.charAt(0);
+                let wordsForLetter = this.wordMap.get(firstLetter);
+                if (!wordsForLetter) {
+                    wordsForLetter = new Map<string, Word>();
+                    this.wordMap.set(firstLetter, wordsForLetter);
                 }
                 const wordObj = { word: line, frequency: 1 };
                 if (!SuggestionBlacklist.hasText(line)) {
-                    wordSet.add(wordObj);
+                    wordsForLetter.set(line, wordObj);
                 }
             }
         }
 
-        let count = 0;
+        // After processing all files, reload words from database to get accurate frequencies
+        await this.loadWordsFromDb();
+
+        return this.getTotalWordCount();
+    }
+
+    private async loadWordsFromDb(): Promise<void> {
+        if (!this.db) {
+            throw new Error('Word list provider not properly initialized: db not set');
+        }
+        this.wordMap.clear();
+        
+        // Get all word list source IDs
+        const wordListSourceIds = await this.db.getWordListSourceIds();
+        
+        // Load words from all word list sources
+        for (const sourceId of wordListSourceIds) {
+            const wordsGrouped = await this.db.getAllWordsBySource(sourceId);
+            
+            for (const [firstLetter, wordList] of wordsGrouped.entries()) {
+                let wordsForLetter = this.wordMap.get(firstLetter);
+                if (!wordsForLetter) {
+                    wordsForLetter = new Map<string, Word>();
+                    this.wordMap.set(firstLetter, wordsForLetter);
+                }
+                
+                for (const word of wordList) {
+                    if (!SuggestionBlacklist.hasText(word.word)) {
+                        // Use database frequency data
+                        wordsForLetter.set(word.word, {
+                            word: word.word,
+                            frequency: word.frequency
+                        });
+                    }
+                }
+            }
+        }
+
         // Sort by frequency (higher first) then length (shorter first)
-        for (let [letter, wordSet] of this.wordMap.entries()) {
-            const sortedWords = Array.from(wordSet).sort((a, b) => {
+        for (let [letter, wordsMap] of this.wordMap.entries()) {
+            const sortedWords = Array.from(wordsMap.values()).sort((a, b) => {
                 const freqDiff = b.frequency - a.frequency;
                 return freqDiff !== 0 ? freqDiff : a.word.length - b.word.length;
             });
-            const newSet = new Set(sortedWords);
-            this.wordMap.set(letter, newSet);
-            count += newSet.size;
+            const newMap = new Map<string, Word>();
+            sortedWords.forEach(word => newMap.set(word.word, word));
+            this.wordMap.set(letter, newMap);
         }
+    }
 
+    private getTotalWordCount(): number {
+        let count = 0;
+        for (let [letter, wordsMap] of this.wordMap.entries()) {
+            count += wordsMap.size;
+        }
         return count;
     }
 

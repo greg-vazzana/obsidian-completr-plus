@@ -6,9 +6,10 @@ import { SuggestionBlacklist } from "./blacklist";
 import { DatabaseService } from "../db/database";
 
 class ScannerSuggestionProvider extends DictionaryProvider {
-    readonly wordMap: Map<string, Set<Word>> = new Map();
+    readonly wordMap: Map<string, Map<string, Word>> = new Map();
     private db: DatabaseService | null = null;
     private scanSourceId: number | null = null;
+    private frequencyUpdates: Map<string, number> = new Map(); // Track frequency increments during scanning
 
     setVault(vault: Vault) {
         this.db = new DatabaseService(vault);
@@ -31,9 +32,22 @@ class ScannerSuggestionProvider extends DictionaryProvider {
         if (!this.db) {
             throw new Error('Scanner not properly initialized: db not set');
         }
+        
+        // Clear scan words before scanning (per-source clearing)
+        await this.db.deleteScanWords();
+        
+        // Clear frequency tracking for this scan session
+        this.frequencyUpdates.clear();
+        
+        // Clear in-memory map since we deleted scan words from database
+        this.wordMap.clear();
+        
         for (let file of files) {
             await this.scanFile(settings, file);
         }
+        
+        // Write batched frequency updates to database after all files are scanned
+        await this.flushFrequencyUpdates();
     }
 
     async scanFile(settings: CompletrSettings, file: TFile) {
@@ -55,7 +69,7 @@ class ScannerSuggestionProvider extends DictionaryProvider {
             if (!groupValue || groupValue.length < settings.minWordLength)
                 continue;
 
-            await this.addWord(groupValue);
+            await this.addOrIncrementWord(groupValue);
         }
     }
 
@@ -65,24 +79,90 @@ class ScannerSuggestionProvider extends DictionaryProvider {
         }
         this.wordMap.clear();
         
-        // Load all words grouped by first letter from database
-        const wordsGrouped = await this.db.getAllWordsGroupedByFirstLetter();
+        // Get scan source ID if not already cached
+        if (this.scanSourceId === null) {
+            this.scanSourceId = await this.db.getScanSourceId();
+        }
+        
+        if (this.scanSourceId === null) {
+            // No scan source exists yet, nothing to load
+            return;
+        }
+        
+        // Load only scan words grouped by first letter from database
+        const wordsGrouped = await this.db.getAllWordsBySource(this.scanSourceId);
         
         for (const [firstLetter, wordList] of wordsGrouped.entries()) {
-            const wordSet = new Set<Word>();
+            const wordsByWord = new Map<string, Word>();
             for (const word of wordList) {
                 if (!SuggestionBlacklist.hasText(word.word)) {
                     // Preserve the actual frequency from database
-                    wordSet.add({
+                    wordsByWord.set(word.word, {
                         word: word.word,
                         frequency: word.frequency
                     });
                 }
             }
-            if (wordSet.size > 0) {
-                this.wordMap.set(firstLetter, wordSet);
+            if (wordsByWord.size > 0) {
+                this.wordMap.set(firstLetter, wordsByWord);
             }
         }
+    }
+
+    private async addOrIncrementWord(word: string) {
+        if (!word || !this.db || SuggestionBlacklist.hasText(word)) {
+            return;
+        }
+
+        // Get scan source ID if not already cached
+        if (this.scanSourceId === null) {
+            this.scanSourceId = await this.db.getScanSourceId();
+            
+            if (this.scanSourceId === null) {
+                throw new Error('Scan source not found in database');
+            }
+        }
+
+        const firstLetter = word.charAt(0);
+        
+        // Update in-memory map
+        let wordsForLetter = this.wordMap.get(firstLetter);
+        if (!wordsForLetter) {
+            wordsForLetter = new Map<string, Word>();
+            this.wordMap.set(firstLetter, wordsForLetter);
+        }
+        
+        const existingWord = wordsForLetter.get(word);
+        if (existingWord) {
+            // Increment frequency in memory
+            existingWord.frequency += 1;
+        } else {
+            // Add new word to memory with frequency 1
+            wordsForLetter.set(word, { word, frequency: 1 });
+        }
+        
+        // Track frequency increment for batch database update
+        const currentIncrement = this.frequencyUpdates.get(word) || 0;
+        this.frequencyUpdates.set(word, currentIncrement + 1);
+    }
+
+    private async flushFrequencyUpdates() {
+        if (!this.db || this.frequencyUpdates.size === 0) {
+            return;
+        }
+
+        // Write all frequency updates to database
+        for (const [word, incrementCount] of this.frequencyUpdates.entries()) {
+            try {
+                await this.db.addOrIncrementWord(word, this.scanSourceId!, incrementCount);
+            } catch (error) {
+                console.error(`Failed to update frequency for word "${word}":`, error);
+                // Continue with other words even if one fails
+            }
+        }
+        
+        // Clear the updates after successful flush
+        this.frequencyUpdates.clear();
     }
 
     async saveData(vault: Vault) {
@@ -102,40 +182,21 @@ class ScannerSuggestionProvider extends DictionaryProvider {
             throw new Error('Scanner not properly initialized: db not set');
         }
         this.wordMap.clear();
-        await this.db.deleteAllWords();
+        await this.db.deleteScanWords(); // Only delete scan words instead of all words
     }
 
+    async deleteScanWords() {
+        if (!this.db) {
+            throw new Error('Scanner not properly initialized: db not set');
+        }
+        // Clear in-memory scan words and database scan words
+        this.wordMap.clear();
+        await this.db.deleteScanWords();
+    }
+
+    // Keep the old addWord method for backwards compatibility, but mark as deprecated
     private async addWord(word: string) {
-        if (!word || !this.db || SuggestionBlacklist.hasText(word)) {
-            return;
-        }
-
-        // Get scan source ID if not already cached
-        if (this.scanSourceId === null) {
-            const index = this.db['db'].transaction('sources', 'readonly')
-                .objectStore('sources')
-                .index('name');
-            
-            const request = index.get('scan');
-            this.scanSourceId = await new Promise((resolve, reject) => {
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => resolve(request.result?.id ?? null);
-            });
-
-            if (this.scanSourceId === null) {
-                throw new Error('Scan source not found in database');
-            }
-        }
-
-        await this.db.addWord(word, this.scanSourceId);
-        
-        // Also update in-memory map for fast lookups
-        let wordSet = this.wordMap.get(word.charAt(0));
-        if (!wordSet) {
-            wordSet = new Set<Word>();
-            this.wordMap.set(word.charAt(0), wordSet);
-        }
-        wordSet.add({ word, frequency: 1 });
+        await this.addOrIncrementWord(word);
     }
 }
 
