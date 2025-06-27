@@ -277,6 +277,10 @@ export default class CompletrPlugin extends Plugin {
                 {
                     key: "ArrowDown",
                     modifiers: []
+                },
+                {
+                    key: "Tab",
+                    modifiers: []
                 }
             ],
             repeatable: true,
@@ -293,6 +297,10 @@ export default class CompletrPlugin extends Plugin {
                 {
                     key: "ArrowUp",
                     modifiers: []
+                },
+                {
+                    key: "Tab",
+                    modifiers: ["Shift"]
                 }
             ],
             repeatable: true,
