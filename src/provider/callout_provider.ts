@@ -2,7 +2,7 @@ import { getApi } from "obsidian-callout-manager";
 import { Suggestion, SuggestionContext, SuggestionProvider } from "./provider";
 import { CalloutProviderSource, CompletrSettings, intoCompletrPath } from "../settings";
 import { Notice, Vault } from "obsidian";
-import { SuggestionBlacklist } from "./blacklist";
+import { SuggestionIgnorelist } from "./ignorelist";
 import CompletrPlugin from "src/main";
 
 const CALLOUT_SUGGESTIONS_FILE = "callout_suggestions.json";
@@ -114,7 +114,7 @@ class CalloutSuggestionProvider implements SuggestionProvider {
             }
         }
 
-        this.loadedSuggestions = SuggestionBlacklist.filter(this.loadedSuggestions);
+        this.loadedSuggestions = SuggestionIgnorelist.filter(this.loadedSuggestions);
     }
 
     protected async loadSuggestionsUsingCalloutManager() {

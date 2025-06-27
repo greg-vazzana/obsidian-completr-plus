@@ -38,11 +38,11 @@ Browse the community plugins list and search for `Completr`.
 
 ## Configuration
 
-### Blacklist
+### Ignore List
 
-- You can blacklist any suggestion by adding it to the `.obsidian/plugins/obsidian-completr-plus/blacklisted_suggestions.txt`
+- You can ignore any suggestion by adding it to the `.obsidian/plugins/obsidian-completr-plus/ignored_suggestions.txt`
   file
-- Alternatively, you can use the hotkey to blacklist the currently selected suggestion (Default `Shift+D`)
+- Alternatively, you can use the hotkey to add the currently selected suggestion to the ignore list (Default `Shift+D`)
 
 ### LaTeX commands
 

@@ -2,7 +2,7 @@ import { CompletrSettings, intoCompletrPath } from "../settings";
 import { DictionaryProvider } from "./dictionary_provider";
 import { Word } from "../db/database";
 import { Vault } from "obsidian";
-import { SuggestionBlacklist } from "./blacklist";
+import { SuggestionIgnorelist } from "./ignorelist";
 import { DatabaseService } from "../db/database";
 import { WordPatterns } from "../word_patterns";
 
@@ -84,7 +84,7 @@ class WordListSuggestionProvider extends DictionaryProvider {
                     this.wordMap.set(firstLetter, wordsForLetter);
                 }
                 const wordObj = { word: line, frequency: 1 };
-                if (!SuggestionBlacklist.hasText(line)) {
+                if (!SuggestionIgnorelist.hasText(line)) {
                     wordsForLetter.set(line, wordObj);
                 }
             }
@@ -117,7 +117,7 @@ class WordListSuggestionProvider extends DictionaryProvider {
                 }
                 
                 for (const word of wordList) {
-                    if (!SuggestionBlacklist.hasText(word.word)) {
+                    if (!SuggestionIgnorelist.hasText(word.word)) {
                         // Use database frequency data
                         wordsForLetter.set(word.word, {
                             word: word.word,

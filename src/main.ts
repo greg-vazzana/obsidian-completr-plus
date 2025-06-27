@@ -11,7 +11,7 @@ import { markerStateField } from "./marker_state_field";
 import { FrontMatter } from "./provider/front_matter_provider";
 import { Latex } from "./provider/latex_provider";
 import { Callout } from "./provider/callout_provider";
-import { SuggestionBlacklist } from "./provider/blacklist";
+import { SuggestionIgnorelist } from "./provider/ignorelist";
 import PeriodInserter from "./period_inserter";
 import { DatabaseService } from "./db/database";
 import { WordPatterns } from "./word_patterns";
@@ -90,8 +90,8 @@ class LiveWordTracker {
     private async incrementWordFrequency(word: string): Promise<void> {
         if (!this.db) return;
 
-        // Check blacklist
-        if (SuggestionBlacklist.hasText(word)) {
+        // Check ignore list
+        if (SuggestionIgnorelist.hasText(word)) {
             return;
         }
 
@@ -365,8 +365,8 @@ export default class CompletrPlugin extends Plugin {
             isVisible: () => this._suggestionPopup.isVisible(),
         });
         this.addCommand({
-            id: 'completr-blacklist-current-word',
-            name: 'Add the currently selected word to the blacklist',
+            id: 'completr-ignore-current-word',
+            name: 'Add the currently selected word to the ignore list',
             hotkeys: [
                 {
                     key: "D",
@@ -374,8 +374,8 @@ export default class CompletrPlugin extends Plugin {
                 }
             ],
             editorCallback: (editor) => {
-                SuggestionBlacklist.add(this._suggestionPopup.getSelectedItem());
-                SuggestionBlacklist.saveData(this.app.vault);
+                SuggestionIgnorelist.add(this._suggestionPopup.getSelectedItem());
+                SuggestionIgnorelist.saveData(this.app.vault);
                 (this._suggestionPopup as any).trigger(editor, this.app.workspace.getActiveFile(), true);
             },
             // @ts-ignore
@@ -512,7 +512,7 @@ export default class CompletrPlugin extends Plugin {
 
         try {
             // Initialize providers in sequence to avoid race conditions
-            await SuggestionBlacklist.loadData(this.app.vault);
+            await SuggestionIgnorelist.loadData(this.app.vault);
             
             // Initialize word list provider first
             WordList.setVault(this.app.vault);

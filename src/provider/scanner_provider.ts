@@ -2,7 +2,7 @@ import { TFile, Vault } from "obsidian";
 import { CompletrSettings } from "../settings";
 import { DictionaryProvider } from "./dictionary_provider";
 import { Word } from "../db/database";
-import { SuggestionBlacklist } from "./blacklist";
+import { SuggestionIgnorelist } from "./ignorelist";
 import { DatabaseService } from "../db/database";
 import { WordPatterns } from "../word_patterns";
 
@@ -95,7 +95,7 @@ class ScannerSuggestionProvider extends DictionaryProvider {
         for (const [firstLetter, wordList] of wordsGrouped.entries()) {
             const wordsByWord = new Map<string, Word>();
             for (const word of wordList) {
-                if (!SuggestionBlacklist.hasText(word.word)) {
+                if (!SuggestionIgnorelist.hasText(word.word)) {
                     // Preserve the actual frequency from database
                     wordsByWord.set(word.word, {
                         word: word.word,
@@ -110,7 +110,7 @@ class ScannerSuggestionProvider extends DictionaryProvider {
     }
 
     private async addOrIncrementWord(word: string) {
-        if (!word || !this.db || SuggestionBlacklist.hasText(word)) {
+        if (!word || !this.db || SuggestionIgnorelist.hasText(word)) {
             return;
         }
 
@@ -205,7 +205,7 @@ class ScannerSuggestionProvider extends DictionaryProvider {
      * without waiting for the next full scan
      */
     incrementWordFrequency(word: string): void {
-        if (!word || SuggestionBlacklist.hasText(word)) {
+        if (!word || SuggestionIgnorelist.hasText(word)) {
             return;
         }
 

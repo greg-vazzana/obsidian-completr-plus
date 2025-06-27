@@ -16,7 +16,7 @@ import SnippetManager from "./snippet_manager";
 import { CompletrSettings } from "./settings";
 import { FrontMatter } from "./provider/front_matter_provider";
 import {matchWordBackwards} from "./editor_helpers";
-import { SuggestionBlacklist } from "./provider/blacklist";
+import { SuggestionIgnorelist } from "./provider/ignorelist";
 import { Callout } from "./provider/callout_provider";
 import { WordPatterns } from "./word_patterns";
 
@@ -94,7 +94,7 @@ export default class SuggestionPopup extends EditorSuggest<Suggestion> {
             seen.add(suggestion.displayName);
             return true;
         });
-        return suggestions.length === 0 ? null : suggestions.filter(s => !SuggestionBlacklist.has(s));
+        return suggestions.length === 0 ? null : suggestions.filter(s => !SuggestionIgnorelist.has(s));
     }
 
     onTrigger(cursor: EditorPosition, editor: Editor, file: TFile): EditorSuggestTriggerInfo | null {

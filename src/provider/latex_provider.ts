@@ -2,7 +2,7 @@ import { Suggestion, SuggestionContext, SuggestionProvider } from "./provider";
 import { CompletrSettings, intoCompletrPath } from "../settings";
 import { BlockType, getLatexBlockType, maybeLowerCase } from "../editor_helpers";
 import { Notice, Vault } from "obsidian";
-import { SuggestionBlacklist } from "./blacklist";
+import { SuggestionIgnorelist } from "./ignorelist";
 
 function substringUntil(str: string, delimiter: string): string {
     let index = str.indexOf(delimiter);
@@ -81,7 +81,7 @@ class LatexSuggestionProvider implements SuggestionProvider {
             }
         }
 
-        this.loadedCommands = SuggestionBlacklist.filter(this.loadedCommands);
+        this.loadedCommands = SuggestionIgnorelist.filter(this.loadedCommands);
     }
 }
 

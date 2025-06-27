@@ -20,6 +20,7 @@ if (!fs.existsSync('dist')) {
 // Copy static files
 fs.copyFileSync('styles.css', 'dist/styles.css');
 fs.copyFileSync('manifest.json', 'dist/manifest.json');
+fs.copyFileSync('ignored_suggestions.txt', 'dist/ignored_suggestions.txt');
 
 esbuild.build({
     banner: {
