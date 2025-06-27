@@ -68,36 +68,47 @@ class LiveWordTracker {
     }
 
     private isWordCharacter(char: string): boolean {
-        // Use the same character regex as the settings
-        return new RegExp(`[${this.settings.characterRegex}]`, "u").test(char);
+        // Use the same character pattern as the scanner regex
+        return /[\p{L}\d]/u.test(char);
     }
 
     private extractCompletedWord(editor: any, cursor: EditorPosition): string | null {
         const line = editor.getLine(cursor.line);
         console.log('LiveWordTracker: Line:', line, 'Cursor ch:', cursor.ch);
         
-        // Start from the character before the current cursor (which should be the non-word character we just typed)
-        let wordEnd = cursor.ch - 1;
-        let wordStart = wordEnd - 1;
-
-        // Move backwards to find the start of the word
-        while (wordStart >= 0 && this.isWordCharacter(line.charAt(wordStart))) {
-            wordStart--;
-        }
-        wordStart++; // Move to the first character of the word
-
-        // Extract the word (from wordStart to wordEnd, not including the non-word character)
-        const word = line.substring(wordStart, wordEnd);
+        // Use the same regex pattern as the scanner to find words
+        // This matches: letters/digits + optional internal hyphens/apostrophes/underscores + optional dot segments
+        const wordRegex = /[\p{L}\d]+(?:[-'_][\p{L}\d]+)*(?:\.[\p{L}\d]+)*/gu;
         
-        console.log('LiveWordTracker: Extracted word:', `"${word}"`, 'from positions', wordStart, 'to', wordEnd);
+        // Find all word matches in the line
+        const matches = Array.from(line.matchAll(wordRegex)) as RegExpMatchArray[];
         
-        // Validate word (same pattern as scanner)
-        if (word.length === 0 || !word.match(/^[\p{L}\d]+(?:[-'_][\p{L}\d]+)*(?:\.[\p{L}\d]+)*$/u)) {
-            console.log('LiveWordTracker: Word validation failed - length:', word.length, 'regex match:', !!word.match(/^[\p{L}\d]+(?:[-'_][\p{L}\d]+)*(?:\.[\p{L}\d]+)*$/u));
-            return null;
+        // Find which match contains the cursor position (before the current character)
+        const targetPos = cursor.ch - 1; // Position before cursor (end of completed word)
+        
+        for (const match of matches) {
+            if (match.index === undefined || !match[0]) continue;
+            
+            const matchStart = match.index;
+            const matchEnd = matchStart + match[0].length;
+            
+            // Check if the cursor is right after this word
+            if (targetPos === matchEnd) {
+                const word = match[0];
+                console.log('LiveWordTracker: Extracted word:', `"${word}"`, 'from regex match');
+                
+                // Validate word length
+                if (word.length === 0 || word.length < this.settings.minWordLength) {
+                    console.log('LiveWordTracker: Word validation failed - length:', word.length);
+                    return null;
+                }
+                
+                return word;
+            }
         }
-
-        return word;
+        
+        console.log('LiveWordTracker: No word found at cursor position');
+        return null;
     }
 
     private async incrementWordFrequency(word: string): Promise<void> {
