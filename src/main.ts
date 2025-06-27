@@ -41,25 +41,48 @@ class LiveWordTracker {
             return;
         }
 
-        // Only track when cursor moves forward (typing, not navigation)
-        if (newCursor.line !== oldCursor.line || newCursor.ch <= oldCursor.ch) {
-            console.log('LiveWordTracker: Skipping - not forward movement');
+        const isLineChange = newCursor.line !== oldCursor.line;
+        const isBackwardMovement = !isLineChange && newCursor.ch <= oldCursor.ch;
+        
+        // Skip only backward movement on the same line (navigation)
+        if (isBackwardMovement) {
+            console.log('LiveWordTracker: Skipping - backward movement on same line');
             return;
         }
 
-        // Check if we just completed a word by typing a non-word character
-        if (newCursor.ch === 0) return;
+        let currentChar: string;
+        let checkCursor: EditorPosition;
+        
+        if (isLineChange) {
+            // Line changed - check for completed word at the end of the OLD line
+            if (oldCursor.ch === 0) {
+                console.log('LiveWordTracker: Skipping - old cursor was at beginning of line');
+                return;
+            }
+            
+            // Simulate newline character as the completion trigger
+            currentChar = '\n';
+            checkCursor = oldCursor;
+            console.log('LiveWordTracker: Line change detected - checking old line for completed word');
+        } else {
+            // Same line - normal logic
+            if (newCursor.ch === 0) {
+                console.log('LiveWordTracker: Skipping - cursor at beginning of line');
+                return;
+            }
+            
+            currentChar = editor.getRange(
+                { line: newCursor.line, ch: newCursor.ch - 1 },
+                { line: newCursor.line, ch: newCursor.ch }
+            );
+            checkCursor = newCursor;
+        }
 
-        const currentChar = editor.getRange(
-            { line: newCursor.line, ch: newCursor.ch - 1 },
-            { line: newCursor.line, ch: newCursor.ch }
-        );
-
-        console.log('LiveWordTracker: Current char:', currentChar, 'isWordChar:', this.isWordCharacter(currentChar));
+        console.log('LiveWordTracker: Current char:', currentChar.replace(/\n/g, '\\n'), 'isWordChar:', this.isWordCharacter(currentChar));
 
         // If current character is not a word character, we might have completed a word
         if (!this.isWordCharacter(currentChar)) {
-            const completedWord = this.extractCompletedWord(editor, newCursor);
+            const completedWord = this.extractCompletedWord(editor, checkCursor);
             console.log('LiveWordTracker: Completed word:', completedWord);
             if (completedWord && completedWord.length >= this.settings.minWordLength) {
                 console.log('LiveWordTracker: Incrementing frequency for:', completedWord);
