@@ -4,6 +4,7 @@ import { Word } from "../db/database";
 import { Vault } from "obsidian";
 import { SuggestionBlacklist } from "./blacklist";
 import { DatabaseService } from "../db/database";
+import { WordPatterns } from "../word_patterns";
 
 const WORD_LISTS_FOLDER_PATH = "wordLists";
 const NEW_LINE_REGEX = /\r?\n/;
@@ -70,7 +71,7 @@ class WordListSuggestionProvider extends DictionaryProvider {
                     continue;
 
                 // Only accept words that match our word pattern
-                if (!line.match(/^[\p{L}\d]+(?:[-'_][\p{L}\d]+)*(?:\.[\p{L}\d]+)*$/u))
+                if (!WordPatterns.isValidWord(line))
                     continue;
 
                 await this.db.addWord(line, sourceId);

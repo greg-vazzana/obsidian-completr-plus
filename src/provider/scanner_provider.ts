@@ -4,6 +4,7 @@ import { DictionaryProvider } from "./dictionary_provider";
 import { Word } from "../db/database";
 import { SuggestionBlacklist } from "./blacklist";
 import { DatabaseService } from "../db/database";
+import { WordPatterns } from "../word_patterns";
 
 class ScannerSuggestionProvider extends DictionaryProvider {
     readonly wordMap: Map<string, Map<string, Word>> = new Map();
@@ -63,8 +64,7 @@ class ScannerSuggestionProvider extends DictionaryProvider {
         // 3. Can have internal hyphens, apostrophes, or underscores followed by more word chars
         // 4. Can have dot-separated segments (like file.txt)
         // 5. End at spaces, periods, commas, or line end
-        const regex = new RegExp("\\$+.*?\\$+|`+.*?`+|\\[+.*?\\]+|https?:\\/\\/[^\\n\\s]+|(?:^|(?<=\\s|[.,]))(?:[\\p{L}\\d]+(?:[-'_][\\p{L}\\d]+)*(?:\\.[\\p{L}\\d]+)*)", "gsu");
-        for (let match of contents.matchAll(regex)) {
+        for (let match of contents.matchAll(WordPatterns.SCANNER_PATTERN)) {
             const groupValue = match[0];
             if (!groupValue || groupValue.length < settings.minWordLength)
                 continue;

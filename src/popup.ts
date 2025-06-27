@@ -18,6 +18,7 @@ import { FrontMatter } from "./provider/front_matter_provider";
 import {matchWordBackwards} from "./editor_helpers";
 import { SuggestionBlacklist } from "./provider/blacklist";
 import { Callout } from "./provider/callout_provider";
+import { WordPatterns } from "./word_patterns";
 
 const PROVIDERS: SuggestionProvider[] = [FrontMatter, Callout, Latex, Scanner, WordList];
 
@@ -114,7 +115,7 @@ export default class SuggestionPopup extends EditorSuggest<Suggestion> {
         let {
             query,
             separatorChar
-        } = matchWordBackwards(editor, cursor, (char) => this.getCharacterRegex().test(char), this.settings.maxLookBackDistance);
+        } = matchWordBackwards(editor, cursor, WordPatterns.createCharacterPredicate(), this.settings.maxLookBackDistance);
         this.separatorChar = separatorChar;
 
         return {
