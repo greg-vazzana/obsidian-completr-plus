@@ -15,7 +15,7 @@ export class WordPatterns {
     
     // Scanner pattern (includes context and excludes certain patterns like LaTeX, code blocks, URLs)
     // This is more complex and used specifically for file scanning to avoid unwanted matches
-    static readonly SCANNER_PATTERN = /\$+.*?\$+|`+.*?`+|\[+.*?\]+|https?:\/\/[^\n\s]+|(?:^|(?<=\s|[.,]))(?:[\p{L}\d]+(?:[-'_][\p{L}\d]+)*(?:\.[\p{L}\d]+)*)/gsu;
+    static readonly SCANNER_PATTERN = /\$+.*?\$+|`+.*?`+|\[+.*?\]+|https?:\/\/[^\n\s]+|(?:^|(?<=[\s\p{P}]))(?:[\p{L}\d]+(?:[-'_][\p{L}\d]+)*(?:\.[\p{L}\d]+)*)/gsu;
     
     /**
      * Test if a single character is a word character (letter or digit)
