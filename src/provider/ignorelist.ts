@@ -16,6 +16,10 @@ export const SuggestionIgnorelist = new class {
         this.ignorelist.add(text);
     }
 
+    removeFromText(text: string) {
+        this.ignorelist.delete(text);
+    }
+
     has(suggestion: Suggestion): boolean {
         return this.hasText(suggestion.displayName);
     }

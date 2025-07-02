@@ -1,4 +1,4 @@
-import { EditorPosition, KeymapContext, MarkdownView, Plugin, TFile, } from "obsidian";
+import { EditorPosition, KeymapContext, MarkdownView, Notice, Plugin, TFile, } from "obsidian";
 import SnippetManager from "./snippet_manager";
 import SuggestionPopup, { SelectionDirection } from "./popup";
 import { CompletrSettings, DEFAULT_SETTINGS } from "./settings";
@@ -212,6 +212,7 @@ export default class CompletrPlugin extends Plugin {
         this.addSettingTab(new CompletrSettingsTab(this.app, this));
 
         this.setupCommands();
+        this.setupContextMenu();
 
         if ((this.app.vault as any).config?.legacyEditor) {
             console.log("Completr: Without Live Preview enabled, most features of Completr will not work properly!");
@@ -528,6 +529,84 @@ export default class CompletrPlugin extends Plugin {
             isBypassCommand: () => true,
             isVisible: () => this._suggestionPopup.isVisible(),
         });
+    }
+
+    private setupContextMenu() {
+        this.registerEvent(
+            this.app.workspace.on('editor-menu', (menu, editor, view) => {
+                const cursor = editor.getCursor();
+                const line = editor.getLine(cursor.line);
+                
+                // Find the word at the current cursor position
+                const word = this.getWordAtCursor(line, cursor.ch);
+                
+                // Only add menu item if there's a valid word
+                if (word) {
+                    const isIgnored = SuggestionIgnorelist.hasText(word);
+                    
+                    menu.addItem((item) => {
+                        if (isIgnored) {
+                            item
+                                .setTitle(`Remove "${word}" from ignore list`)
+                                .setIcon("plus")
+                                .onClick(async () => {
+                                    await this.removeWordFromIgnoreList(word);
+                                });
+                        } else {
+                            item
+                                .setTitle(`Add "${word}" to ignore list`)
+                                .setIcon("x")
+                                .onClick(async () => {
+                                    await this.addWordToIgnoreList(word);
+                                });
+                        }
+                    });
+                }
+            })
+        );
+    }
+
+    private async addWordToIgnoreList(word: string) {
+        // Add to ignore list
+        SuggestionIgnorelist.addFromText(word);
+        await SuggestionIgnorelist.saveData(this.app.vault);
+        
+        // Create a success notice with custom styling
+        this.showSuccessNotice(`Added "${word}" to ignore list`);
+    }
+
+    private async removeWordFromIgnoreList(word: string) {
+        // Remove from ignore list
+        SuggestionIgnorelist.removeFromText(word);
+        await SuggestionIgnorelist.saveData(this.app.vault);
+        
+        // Create a success notice with custom styling
+        this.showSuccessNotice(`Removed "${word}" from ignore list`);
+    }
+
+    private showSuccessNotice(message: string) {
+        // Add a success icon to make it visually distinct from error notices
+        new Notice(`✅ ${message}`, 4000); // Show for 4 seconds
+    }
+
+    private getWordAtCursor(line: string, cursorPosition: number): string | null {
+        // Use WordPatterns to extract all words from the line
+        const matches = WordPatterns.extractWordsFromLine(line);
+        
+        // Find the word that contains the cursor position
+        for (const match of matches) {
+            if (match.index === undefined || !match[0]) continue;
+            
+            const matchStart = match.index;
+            const matchEnd = matchStart + match[0].length;
+            
+            // Check if cursor is within this word's boundaries
+            if (cursorPosition >= matchStart && cursorPosition <= matchEnd) {
+                return match[0];
+            }
+        }
+
+        return null;
     }
 
     async onunload() {
