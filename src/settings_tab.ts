@@ -162,6 +162,16 @@ export default class CompletrSettingsTab extends PluginSettingTab {
                 }));
 
         new Setting(containerEl)
+            .setName("Auto-capitalize first word of line")
+            .setDesc("Automatically capitalize the first word of each line as you type. Respects markdown formatting and preserves mixed-case words like 'iPhone'.")
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.autoCapitalizeFirstWord)
+                .onChange(async val => {
+                    this.plugin.settings.autoCapitalizeFirstWord = val;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
             .setName("Latex provider")
             .setHeading();
 

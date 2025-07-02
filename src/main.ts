@@ -13,6 +13,7 @@ import { Latex } from "./provider/latex_provider";
 import { Callout } from "./provider/callout_provider";
 import { SuggestionIgnorelist } from "./provider/ignorelist";
 import PeriodInserter from "./period_inserter";
+import FirstWordCapitalizer from "./first_word_capitalizer";
 import { DatabaseService } from "./db/database";
 import { WordPatterns } from "./word_patterns";
 
@@ -187,11 +188,13 @@ export default class CompletrPlugin extends Plugin {
     private snippetManager: SnippetManager;
     private _suggestionPopup: SuggestionPopup;
     private _periodInserter: PeriodInserter;
+    private _firstWordCapitalizer: FirstWordCapitalizer;
     private _liveWordTracker: LiveWordTracker;
 
     async onload() {
         this.snippetManager = new SnippetManager();
         this._periodInserter = new PeriodInserter();
+        this._firstWordCapitalizer = new FirstWordCapitalizer();
         
         // Initialize LiveWordTracker early so it's available in loadSettings
         this._liveWordTracker = new LiveWordTracker(DEFAULT_SETTINGS); // Use defaults initially
@@ -207,7 +210,7 @@ export default class CompletrPlugin extends Plugin {
         this.app.workspace.onLayoutReady(() => FrontMatter.loadYAMLKeyCompletions(this.app.metadataCache, this.app.vault.getMarkdownFiles()));
 
         this.registerEditorExtension(markerStateField);
-        this.registerEditorExtension(EditorView.updateListener.of(new CursorActivityListener(this.snippetManager, this._suggestionPopup, this._periodInserter, this._liveWordTracker).listener));
+        this.registerEditorExtension(EditorView.updateListener.of(new CursorActivityListener(this.snippetManager, this._suggestionPopup, this._periodInserter, this._firstWordCapitalizer, this._liveWordTracker).listener));
 
         this.addSettingTab(new CompletrSettingsTab(this.app, this));
 
@@ -681,16 +684,18 @@ class CursorActivityListener {
     private readonly snippetManager: SnippetManager;
     private readonly suggestionPopup: SuggestionPopup;
     private readonly periodInserter: PeriodInserter;
+    private readonly firstWordCapitalizer: FirstWordCapitalizer;
     private readonly liveWordTracker: LiveWordTracker;
 
     private cursorTriggeredByChange = false;
     private lastCursorLine = -1;
     private lastCursorPosition: EditorPosition | null = null;
 
-    constructor(snippetManager: SnippetManager, suggestionPopup: SuggestionPopup, periodInserter: PeriodInserter, liveWordTracker: LiveWordTracker) {
+    constructor(snippetManager: SnippetManager, suggestionPopup: SuggestionPopup, periodInserter: PeriodInserter, firstWordCapitalizer: FirstWordCapitalizer, liveWordTracker: LiveWordTracker) {
         this.snippetManager = snippetManager;
         this.suggestionPopup = suggestionPopup;
         this.periodInserter = periodInserter;
+        this.firstWordCapitalizer = firstWordCapitalizer;
         this.liveWordTracker = liveWordTracker;
     }
 
@@ -718,6 +723,15 @@ class CursorActivityListener {
             console.log('CursorActivityListener: Editor found:', !!editor);
             if (editor) {
                 await this.liveWordTracker.trackWordCompletion(editor, this.lastCursorPosition, cursor);
+                
+                // Check for auto-capitalization when a word boundary trigger is typed
+                if (this.shouldAttemptCapitalization(editor, cursor)) {
+                    // Get the character that was just typed
+                    const justTypedChar = this.getJustTypedCharacter(editor, cursor, this.lastCursorPosition);
+                    if (justTypedChar && FirstWordCapitalizer.isWordBoundaryTrigger(justTypedChar)) {
+                        this.firstWordCapitalizer.attemptCapitalization(editor, cursor, justTypedChar);
+                    }
+                }
             }
         }
         
@@ -744,6 +758,36 @@ class CursorActivityListener {
         this.suggestionPopup.close();
         this.lastCursorPosition = cursor;
     };
+
+    private shouldAttemptCapitalization(editor: any, cursor: EditorPosition): boolean {
+        // Check if auto-capitalization is enabled in settings
+        const app = (window as any).app;
+        if (!app?.plugins?.plugins?.['obsidian-completr-plus']?.settings?.autoCapitalizeFirstWord) {
+            return false;
+        }
+        
+        return true;
+    }
+
+    private getJustTypedCharacter(editor: any, cursor: EditorPosition, lastCursor: EditorPosition): string | null {
+        // Only handle same-line typing for now
+        if (cursor.line !== lastCursor.line) {
+            return '\n'; // Line break is also a word boundary
+        }
+        
+        // Check if cursor moved forward by exactly 1 character
+        if (cursor.ch !== lastCursor.ch + 1) {
+            return null;
+        }
+        
+        // Get the character at the position before the current cursor
+        if (cursor.ch === 0) {
+            return null;
+        }
+        
+        const line = editor.getLine(cursor.line);
+        return line.charAt(cursor.ch - 1);
+    }
 
     private getEditorFromView(view: EditorView): any {
         // Try multiple ways to get the Obsidian editor from the CodeMirror view
