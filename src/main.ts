@@ -29,6 +29,12 @@ class LiveWordTracker {
         this.settings = settings;
     }
 
+    private debugLog(message: string, ...args: any[]) {
+        if (this.settings.debugNLPCapitalization) {
+            console.log(message, ...args);
+        }
+    }
+
     setDatabase(db: DatabaseService) {
         this.db = db;
     }
@@ -39,7 +45,7 @@ class LiveWordTracker {
 
     async trackWordCompletion(editor: any, oldCursor: EditorPosition, newCursor: EditorPosition): Promise<void> {
         if (!this.db || !this.settings.scanEnabled || !this.settings.liveWordTracking) {
-            console.log('LiveWordTracker: Skipping - db:', !!this.db, 'scanEnabled:', this.settings.scanEnabled, 'liveWordTracking:', this.settings.liveWordTracking);
+            this.debugLog('LiveWordTracker: Skipping - db:', !!this.db, 'scanEnabled:', this.settings.scanEnabled, 'liveWordTracking:', this.settings.liveWordTracking);
             return;
         }
 
@@ -48,7 +54,7 @@ class LiveWordTracker {
         
         // Skip only backward movement on the same line (navigation)
         if (isBackwardMovement) {
-            console.log('LiveWordTracker: Skipping - backward movement on same line');
+            this.debugLog('LiveWordTracker: Skipping - backward movement on same line');
             return;
         }
 
@@ -58,18 +64,18 @@ class LiveWordTracker {
         if (isLineChange) {
             // Line changed - check for completed word at the end of the OLD line
             if (oldCursor.ch === 0) {
-                console.log('LiveWordTracker: Skipping - old cursor was at beginning of line');
+                this.debugLog('LiveWordTracker: Skipping - old cursor was at beginning of line');
                 return;
             }
             
             // Simulate newline character as the completion trigger
             currentChar = '\n';
             checkCursor = oldCursor;
-            console.log('LiveWordTracker: Line change detected - checking old line for completed word');
+            this.debugLog('LiveWordTracker: Line change detected - checking old line for completed word');
         } else {
             // Same line - normal logic
             if (newCursor.ch === 0) {
-                console.log('LiveWordTracker: Skipping - cursor at beginning of line');
+                this.debugLog('LiveWordTracker: Skipping - cursor at beginning of line');
                 return;
             }
             
@@ -80,14 +86,14 @@ class LiveWordTracker {
             checkCursor = newCursor;
         }
 
-        console.log('LiveWordTracker: Current char:', currentChar.replace(/\n/g, '\\n'), 'isWordChar:', this.isWordCharacter(currentChar));
+        this.debugLog('LiveWordTracker: Current char:', currentChar.replace(/\n/g, '\\n'), 'isWordChar:', this.isWordCharacter(currentChar));
 
         // If current character is not a word character, we might have completed a word
         if (!this.isWordCharacter(currentChar)) {
             const completedWord = this.extractCompletedWord(editor, checkCursor);
-            console.log('LiveWordTracker: Completed word:', completedWord);
+            this.debugLog('LiveWordTracker: Completed word:', completedWord);
             if (completedWord && completedWord.length >= this.settings.minWordLength) {
-                console.log('LiveWordTracker: Incrementing frequency for:', completedWord);
+                this.debugLog('LiveWordTracker: Incrementing frequency for:', completedWord);
                 await this.incrementWordFrequency(completedWord);
             }
         }
@@ -99,16 +105,16 @@ class LiveWordTracker {
 
     private extractCompletedWord(editor: any, cursor: EditorPosition): string | null {
         const line = editor.getLine(cursor.line);
-        console.log('LiveWordTracker: Line:', line, 'Cursor ch:', cursor.ch);
+        this.debugLog('LiveWordTracker: Line:', line, 'Cursor ch:', cursor.ch);
         
         const word = WordPatterns.findWordAtPosition(line, cursor.ch - 1);
         
         if (word && word.length >= this.settings.minWordLength) {
-            console.log('LiveWordTracker: Extracted word:', `"${word}"`, 'using WordPatterns');
+            this.debugLog('LiveWordTracker: Extracted word:', `"${word}"`, 'using WordPatterns');
             return word;
         }
         
-        console.log('LiveWordTracker: No valid word found at cursor position');
+        this.debugLog('LiveWordTracker: No valid word found at cursor position');
         return null;
     }
 
@@ -213,7 +219,7 @@ export default class CompletrPlugin extends Plugin {
         this.app.workspace.onLayoutReady(() => FrontMatter.loadYAMLKeyCompletions(this.app.metadataCache, this.app.vault.getMarkdownFiles()));
 
         this.registerEditorExtension(markerStateField);
-        this.registerEditorExtension(EditorView.updateListener.of(new CursorActivityListener(this.snippetManager, this._suggestionPopup, this._periodInserter, this._firstWordCapitalizer, this._nlpCapitalizer, this._liveWordTracker).listener));
+        this.registerEditorExtension(EditorView.updateListener.of(new CursorActivityListener(this.snippetManager, this._suggestionPopup, this._periodInserter, this._firstWordCapitalizer, this._nlpCapitalizer, this._liveWordTracker, this).listener));
 
         this.addSettingTab(new CompletrSettingsTab(this.app, this));
 
@@ -221,7 +227,10 @@ export default class CompletrPlugin extends Plugin {
         this.setupContextMenu();
 
         if ((this.app.vault as any).config?.legacyEditor) {
-            console.log("Completr: Without Live Preview enabled, most features of Completr will not work properly!");
+            // This is an important warning, but respect debug setting
+            if (this.settings.debugNLPCapitalization) {
+                console.log("Completr: Without Live Preview enabled, most features of Completr will not work properly!");
+            }
         }
     }
 
@@ -680,6 +689,15 @@ export default class CompletrPlugin extends Plugin {
 
     async saveSettings() {
         await this.saveData(this.settings);
+        
+        // Update all components with new settings
+        this._liveWordTracker.updateSettings(this.settings);
+        this._nlpCapitalizer.updateConfig({
+            capitalizeFirstWordOfLine: this.settings.autoCapitalizeFirstWord,
+            capitalizeFirstWordOfSentence: this.settings.autoCapitalizeFirstWordOfSentence,
+            preserveMixedCase: this.settings.preserveMixedCaseWords,
+            debug: this.settings.debugNLPCapitalization
+        });
     }
 
     private readonly onFileOpened = (file: TFile) => {
@@ -698,18 +716,26 @@ class CursorActivityListener {
     private readonly firstWordCapitalizer: FirstWordCapitalizer;
     private readonly nlpCapitalizer: NLPCapitalizer;
     private readonly liveWordTracker: LiveWordTracker;
+    private readonly plugin: CompletrPlugin;
 
     private cursorTriggeredByChange = false;
     private lastCursorLine = -1;
     private lastCursorPosition: EditorPosition | null = null;
 
-    constructor(snippetManager: SnippetManager, suggestionPopup: SuggestionPopup, periodInserter: PeriodInserter, firstWordCapitalizer: FirstWordCapitalizer, nlpCapitalizer: NLPCapitalizer, liveWordTracker: LiveWordTracker) {
+    constructor(snippetManager: SnippetManager, suggestionPopup: SuggestionPopup, periodInserter: PeriodInserter, firstWordCapitalizer: FirstWordCapitalizer, nlpCapitalizer: NLPCapitalizer, liveWordTracker: LiveWordTracker, plugin: CompletrPlugin) {
         this.snippetManager = snippetManager;
         this.suggestionPopup = suggestionPopup;
         this.periodInserter = periodInserter;
         this.firstWordCapitalizer = firstWordCapitalizer;
         this.nlpCapitalizer = nlpCapitalizer;
         this.liveWordTracker = liveWordTracker;
+        this.plugin = plugin;
+    }
+
+    private debugLog(message: string, ...args: any[]) {
+        if (this.plugin.settings.debugNLPCapitalization) {
+            console.log(message, ...args);
+        }
     }
 
     readonly listener = (update: ViewUpdate) => {
@@ -733,7 +759,7 @@ class CursorActivityListener {
         // Track word completion if we have a previous cursor position and document changed
         if (this.lastCursorPosition && this.cursorTriggeredByChange && update.view.dom) {
             const editor = this.getEditorFromView(update.view);
-            console.log('CursorActivityListener: Editor found:', !!editor);
+            this.debugLog('CursorActivityListener: Editor found:', !!editor);
             if (editor) {
                 await this.liveWordTracker.trackWordCompletion(editor, this.lastCursorPosition, cursor);
                 
@@ -774,16 +800,8 @@ class CursorActivityListener {
     };
 
     private shouldAttemptCapitalization(editor: any, cursor: EditorPosition): boolean {
-        // Check if auto-capitalization is enabled in settings
-        const app = (window as any).app;
-        const settings = app?.plugins?.plugins?.['obsidian-completr-plus']?.settings;
-        
-        if (!settings) {
-            return false;
-        }
-        
         // Enable capitalization if either line-level OR sentence-level capitalization is enabled
-        return settings.autoCapitalizeFirstWord || settings.autoCapitalizeFirstWordOfSentence;
+        return this.plugin.settings.autoCapitalizeFirstWord || this.plugin.settings.autoCapitalizeFirstWordOfSentence;
     }
 
     private getJustTypedCharacter(editor: any, cursor: EditorPosition, lastCursor: EditorPosition): string | null {
