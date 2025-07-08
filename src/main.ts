@@ -14,6 +14,7 @@ import { Callout } from "./provider/callout_provider";
 import { SuggestionIgnorelist } from "./provider/ignorelist";
 import PeriodInserter from "./period_inserter";
 import FirstWordCapitalizer from "./first_word_capitalizer";
+import NLPCapitalizer from "./nlp_capitalizer";
 import { DatabaseService } from "./db/database";
 import { WordPatterns } from "./word_patterns";
 
@@ -189,12 +190,14 @@ export default class CompletrPlugin extends Plugin {
     private _suggestionPopup: SuggestionPopup;
     private _periodInserter: PeriodInserter;
     private _firstWordCapitalizer: FirstWordCapitalizer;
+    private _nlpCapitalizer: NLPCapitalizer;
     private _liveWordTracker: LiveWordTracker;
 
     async onload() {
         this.snippetManager = new SnippetManager();
         this._periodInserter = new PeriodInserter();
         this._firstWordCapitalizer = new FirstWordCapitalizer();
+        this._nlpCapitalizer = new NLPCapitalizer(); // Will be configured after loadSettings
         
         // Initialize LiveWordTracker early so it's available in loadSettings
         this._liveWordTracker = new LiveWordTracker(DEFAULT_SETTINGS); // Use defaults initially
@@ -210,7 +213,7 @@ export default class CompletrPlugin extends Plugin {
         this.app.workspace.onLayoutReady(() => FrontMatter.loadYAMLKeyCompletions(this.app.metadataCache, this.app.vault.getMarkdownFiles()));
 
         this.registerEditorExtension(markerStateField);
-        this.registerEditorExtension(EditorView.updateListener.of(new CursorActivityListener(this.snippetManager, this._suggestionPopup, this._periodInserter, this._firstWordCapitalizer, this._liveWordTracker).listener));
+        this.registerEditorExtension(EditorView.updateListener.of(new CursorActivityListener(this.snippetManager, this._suggestionPopup, this._periodInserter, this._firstWordCapitalizer, this._nlpCapitalizer, this._liveWordTracker).listener));
 
         this.addSettingTab(new CompletrSettingsTab(this.app, this));
 
@@ -644,6 +647,14 @@ export default class CompletrPlugin extends Plugin {
             
             await Latex.loadCommands(this.app.vault);
             await Callout.loadSuggestions(this.app.vault, this);
+            
+            // Configure NLP capitalizer with current settings
+            this._nlpCapitalizer.updateConfig({
+                capitalizeFirstWordOfLine: this.settings.autoCapitalizeFirstWord,
+                capitalizeFirstWordOfSentence: this.settings.autoCapitalizeFirstWordOfSentence,
+                preserveMixedCase: this.settings.preserveMixedCaseWords,
+                debug: this.settings.debugNLPCapitalization
+            });
         } catch (error) {
             console.error('Error loading Completr providers:', error);
             throw error;
@@ -685,17 +696,19 @@ class CursorActivityListener {
     private readonly suggestionPopup: SuggestionPopup;
     private readonly periodInserter: PeriodInserter;
     private readonly firstWordCapitalizer: FirstWordCapitalizer;
+    private readonly nlpCapitalizer: NLPCapitalizer;
     private readonly liveWordTracker: LiveWordTracker;
 
     private cursorTriggeredByChange = false;
     private lastCursorLine = -1;
     private lastCursorPosition: EditorPosition | null = null;
 
-    constructor(snippetManager: SnippetManager, suggestionPopup: SuggestionPopup, periodInserter: PeriodInserter, firstWordCapitalizer: FirstWordCapitalizer, liveWordTracker: LiveWordTracker) {
+    constructor(snippetManager: SnippetManager, suggestionPopup: SuggestionPopup, periodInserter: PeriodInserter, firstWordCapitalizer: FirstWordCapitalizer, nlpCapitalizer: NLPCapitalizer, liveWordTracker: LiveWordTracker) {
         this.snippetManager = snippetManager;
         this.suggestionPopup = suggestionPopup;
         this.periodInserter = periodInserter;
         this.firstWordCapitalizer = firstWordCapitalizer;
+        this.nlpCapitalizer = nlpCapitalizer;
         this.liveWordTracker = liveWordTracker;
     }
 
@@ -728,8 +741,9 @@ class CursorActivityListener {
                 if (this.shouldAttemptCapitalization(editor, cursor)) {
                     // Get the character that was just typed
                     const justTypedChar = this.getJustTypedCharacter(editor, cursor, this.lastCursorPosition);
-                    if (justTypedChar && FirstWordCapitalizer.isWordBoundaryTrigger(justTypedChar)) {
-                        this.firstWordCapitalizer.attemptCapitalization(editor, cursor, justTypedChar);
+                    if (justTypedChar && (FirstWordCapitalizer.isWordBoundaryTrigger(justTypedChar) || NLPCapitalizer.isSentenceEndTrigger(justTypedChar))) {
+                        // Use NLP capitalizer for enhanced sentence detection
+                        this.nlpCapitalizer.attemptCapitalization(editor, cursor, justTypedChar);
                     }
                 }
             }
@@ -762,11 +776,14 @@ class CursorActivityListener {
     private shouldAttemptCapitalization(editor: any, cursor: EditorPosition): boolean {
         // Check if auto-capitalization is enabled in settings
         const app = (window as any).app;
-        if (!app?.plugins?.plugins?.['obsidian-completr-plus']?.settings?.autoCapitalizeFirstWord) {
+        const settings = app?.plugins?.plugins?.['obsidian-completr-plus']?.settings;
+        
+        if (!settings) {
             return false;
         }
         
-        return true;
+        // Enable capitalization if either line-level OR sentence-level capitalization is enabled
+        return settings.autoCapitalizeFirstWord || settings.autoCapitalizeFirstWordOfSentence;
     }
 
     private getJustTypedCharacter(editor: any, cursor: EditorPosition, lastCursor: EditorPosition): string | null {

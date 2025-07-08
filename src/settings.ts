@@ -36,6 +36,9 @@ export interface CompletrSettings {
     calloutProviderEnabled: boolean,
     calloutProviderSource: CalloutProviderSource,
     autoCapitalizeFirstWord: boolean,
+    autoCapitalizeFirstWordOfSentence: boolean,
+    preserveMixedCaseWords: boolean,
+    debugNLPCapitalization: boolean,
 }
 
 export const DEFAULT_SETTINGS: CompletrSettings = {
@@ -63,6 +66,9 @@ export const DEFAULT_SETTINGS: CompletrSettings = {
     calloutProviderEnabled: true,
     calloutProviderSource: CalloutProviderSource.COMPLETR,
     autoCapitalizeFirstWord: true,
+    autoCapitalizeFirstWordOfSentence: true,
+    preserveMixedCaseWords: true,
+    debugNLPCapitalization: false,
 }
 
 export function intoCompletrPath(vault: Vault, ...path: string[]): string {

@@ -172,6 +172,36 @@ export default class CompletrSettingsTab extends PluginSettingTab {
                 }));
 
         new Setting(containerEl)
+            .setName("Auto-capitalize first word of sentence")
+            .setDesc("Use NLP to detect sentence boundaries and automatically capitalize the first word of each sentence. This works across line breaks and provides more intelligent capitalization.")
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.autoCapitalizeFirstWordOfSentence)
+                .onChange(async val => {
+                    this.plugin.settings.autoCapitalizeFirstWordOfSentence = val;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName("Preserve mixed-case words")
+            .setDesc("Don't capitalize words that have mixed case (like 'iPhone', 'JavaScript', 'eBay'). When disabled, all words will be capitalized regardless of their original casing.")
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.preserveMixedCaseWords)
+                .onChange(async val => {
+                    this.plugin.settings.preserveMixedCaseWords = val;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName("Debug NLP capitalization")
+            .setDesc("Enable debug logging for NLP-based capitalization. Useful for troubleshooting but may impact performance. Check the developer console for logs.")
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.debugNLPCapitalization)
+                .onChange(async val => {
+                    this.plugin.settings.debugNLPCapitalization = val;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
             .setName("Latex provider")
             .setHeading();
 
