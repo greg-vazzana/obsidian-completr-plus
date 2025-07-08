@@ -196,6 +196,7 @@ export default class CompletrPlugin extends Plugin {
     private _periodInserter: PeriodInserter;
     private _nlpCapitalizer: NLPCapitalizer;
     private _liveWordTracker: LiveWordTracker;
+    private _cursorActivityListener: CursorActivityListener;
 
     async onload() {
         this.snippetManager = new SnippetManager();
@@ -216,7 +217,8 @@ export default class CompletrPlugin extends Plugin {
         this.app.workspace.onLayoutReady(() => FrontMatter.loadYAMLKeyCompletions(this.app.metadataCache, this.app.vault.getMarkdownFiles()));
 
         this.registerEditorExtension(markerStateField);
-        this.registerEditorExtension(EditorView.updateListener.of(new CursorActivityListener(this.snippetManager, this._suggestionPopup, this._periodInserter, this._nlpCapitalizer, this._liveWordTracker, this).listener));
+        this._cursorActivityListener = new CursorActivityListener(this.snippetManager, this._suggestionPopup, this._periodInserter, this._nlpCapitalizer, this._liveWordTracker, this);
+        this.registerEditorExtension(EditorView.updateListener.of(this._cursorActivityListener.listener));
 
         this.addSettingTab(new CompletrSettingsTab(this.app, this));
 
@@ -633,6 +635,9 @@ export default class CompletrPlugin extends Plugin {
         if (this._liveWordTracker) {
             await this._liveWordTracker.onUnload();
         }
+        if (this._cursorActivityListener) {
+            this._cursorActivityListener.cleanup();
+        }
     }
 
     async loadSettings() {
@@ -723,6 +728,10 @@ class CursorActivityListener {
     private cursorTriggeredByChange = false;
     private lastCursorLine = -1;
     private lastCursorPosition: EditorPosition | null = null;
+    
+    // Debouncing for NLP capitalization
+    private nlpDebounceTimeout: NodeJS.Timeout | null = null;
+    private readonly NLP_DEBOUNCE_DELAY = 100; // 100ms debounce for NLP operations
 
     constructor(snippetManager: SnippetManager, suggestionPopup: SuggestionPopup, periodInserter: PeriodInserter, nlpCapitalizer: NLPCapitalizer, liveWordTracker: LiveWordTracker, plugin: CompletrPlugin) {
         this.snippetManager = snippetManager;
@@ -761,31 +770,57 @@ class CursorActivityListener {
         const justTypedChar = this.getJustTypedCharacter(editor, cursor, this.lastCursorPosition);
         this.debugLog('handleCursorActivity - justTypedChar:', justTypedChar);
 
-        // Check for capitalization
-        if (justTypedChar) {
-            const isSentenceEnd = NLPCapitalizer.isSentenceEndTrigger(justTypedChar);
-            const isWordBoundary = NLPCapitalizer.isWordBoundaryTrigger(justTypedChar);
-            
-            if ((isSentenceEnd || isWordBoundary) && this.shouldAttemptCapitalization(editor, cursor)) {
-                this.nlpCapitalizer.attemptCapitalization(editor, cursor, justTypedChar);
-            }
-        }
-
-        // Track word completion for live word tracking
+        // Immediate operations that need to happen right away
+        
+        // Track word completion for live word tracking (priority - immediate)
         if (this.lastCursorPosition) {
             await this.liveWordTracker.trackWordCompletion(editor, this.lastCursorPosition, cursor);
         }
 
-        // Handle period insertion
+        // Handle period insertion (immediate for good UX)
         if (justTypedChar) {
             if (this.plugin.settings.insertPeriodAfterSpaces && this.periodInserter.canInsertPeriod()) {
                 this.periodInserter.attemptInsert(editor);
             }
         }
 
+        // Debounced NLP capitalization (expensive operation)
+        this.scheduleNLPCapitalization(editor, cursor, justTypedChar);
+
         this.lastCursorPosition = cursor;
         this.lastCursorLine = cursor.line;
     };
+
+    private scheduleNLPCapitalization(editor: any, cursor: EditorPosition, justTypedChar: string | null) {
+        // Clear existing timeout to reset debounce
+        if (this.nlpDebounceTimeout) {
+            clearTimeout(this.nlpDebounceTimeout);
+        }
+
+        // Schedule debounced NLP capitalization
+        this.nlpDebounceTimeout = setTimeout(() => {
+            try {
+                if (justTypedChar) {
+                    const isSentenceEnd = NLPCapitalizer.isSentenceEndTrigger(justTypedChar);
+                    const isWordBoundary = NLPCapitalizer.isWordBoundaryTrigger(justTypedChar);
+                    
+                    if ((isSentenceEnd || isWordBoundary) && this.shouldAttemptCapitalization(editor, cursor)) {
+                        this.nlpCapitalizer.attemptCapitalization(editor, cursor, justTypedChar);
+                    }
+                }
+            } catch (error) {
+                console.error('Error in debounced NLP capitalization:', error);
+            }
+        }, this.NLP_DEBOUNCE_DELAY);
+    }
+
+    cleanup() {
+        // Clear any pending NLP debounce timeout
+        if (this.nlpDebounceTimeout) {
+            clearTimeout(this.nlpDebounceTimeout);
+            this.nlpDebounceTimeout = null;
+        }
+    }
 
     private shouldAttemptCapitalization(editor: any, cursor: EditorPosition): boolean {
         // Enable capitalization if either line-level OR sentence-level capitalization is enabled
