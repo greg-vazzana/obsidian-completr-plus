@@ -140,7 +140,11 @@ export default class CompletrSettingsTab extends PluginSettingTab {
                     this.plugin.settings.ignoreDiacriticsWhenFiltering = val;
                     await this.plugin.saveSettings();
                 }));
-        
+                
+        new Setting(containerEl)
+        .setName("Authoring")
+        .setHeading();
+            
         new Setting(containerEl)
             .setName("Add space after completed word")
             .setDesc("When enabled, a space will be added after a word has been completed.")
@@ -160,10 +164,6 @@ export default class CompletrSettingsTab extends PluginSettingTab {
                     this.plugin.settings.insertPeriodAfterSpaces = val;
                     await this.plugin.saveSettings();
                 }));
-
-        new Setting(containerEl)
-            .setName("Authoring")
-            .setHeading();
 
         new Setting(containerEl)
             .setName("Auto-capitalize lines")
