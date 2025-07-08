@@ -9,12 +9,12 @@ export interface NLPCapitalizationConfig {
     /**
      * Capitalize first word of each line (existing behavior)
      */
-    capitalizeFirstWordOfLine: boolean;
+    capitalizeLines: boolean;
     
     /**
      * Capitalize first word of each sentence (new feature)
      */
-    capitalizeFirstWordOfSentence: boolean;
+    capitalizeSentences: boolean;
     
     /**
      * Preserve mixed-case words like iPhone, JavaScript, etc.
@@ -36,8 +36,8 @@ export default class NLPCapitalizer {
     
     constructor(config: Partial<NLPCapitalizationConfig> = {}) {
         this.config = {
-            capitalizeFirstWordOfLine: true,
-            capitalizeFirstWordOfSentence: true,
+            capitalizeLines: true,
+            capitalizeSentences: true,
             preserveMixedCase: true,
             debug: false,
             ...config
@@ -67,10 +67,15 @@ export default class NLPCapitalizer {
             return;
         }
 
+        // Skip if no capitalization modes are enabled
+        if (!this.shouldAttemptCapitalization(editor, cursor)) {
+            return;
+        }
+
         const line = editor.getLine(cursor.line);
         
         // Try line-level capitalization first (maintains existing behavior)
-        if (this.config.capitalizeFirstWordOfLine) {
+        if (this.config.capitalizeLines) {
             const lineCapitalized = this.tryLineCapitalization(editor, cursor, line, trigger);
             if (lineCapitalized) {
                 if (this.config.debug) {
@@ -81,7 +86,7 @@ export default class NLPCapitalizer {
         }
 
         // Try sentence-level capitalization
-        if (this.config.capitalizeFirstWordOfSentence) {
+        if (this.config.capitalizeSentences) {
             if (this.config.debug) {
                 console.log('NLPCapitalizer: Attempting sentence capitalization');
             }
@@ -627,6 +632,14 @@ export default class NLPCapitalizer {
         }
 
         return true;
+    }
+
+    /**
+     * Determines if we should attempt capitalization based on settings
+     */
+    private shouldAttemptCapitalization(editor: Editor, cursor: EditorPosition): boolean {
+        // Check if either line-level OR sentence-level capitalization is enabled
+        return this.config.capitalizeLines || this.config.capitalizeSentences;
     }
 
     /**

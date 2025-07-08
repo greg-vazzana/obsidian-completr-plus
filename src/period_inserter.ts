@@ -1,4 +1,5 @@
 import {Editor} from "obsidian";
+import { WordPatterns } from "./word_patterns";
 
 /**
  * A simple class to keep track the state of a period being added after a completed word.
@@ -31,6 +32,12 @@ export default class PeriodInserter {
         this.cancelInsertPeriod()
         
         const cursor = editor.getCursor()
+        const line = editor.getLine(cursor.line)
+        
+        // Don't insert period if we're in the middle of a word
+        if (cursor.ch < line.length && WordPatterns.isWordCharacter(line[cursor.ch])) {
+            return
+        }
         
         editor.replaceRange(".", {line: cursor.line, ch: cursor.ch - 1})
     }

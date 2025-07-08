@@ -142,3 +142,100 @@ iPhone-compatible → iPhone-compatible
 - ✅ Override: Simple ALL CAPS or lowercase words
 - ✅ Respect: Markdown prefixes (headers, lists, quotes)
 - ✅ Trigger on: Space, punctuation (.,!?;:), line breaks
+
+# Capitalization Test Cases
+
+## Line-Level Capitalization Tests
+
+1. Basic line starts:
+hello world
+this should capitalize
+welcome to obsidian
+
+2. Markdown prefixes:
+- list item one
+* list item two
+> blockquote text
+# heading text
+## subheading text
+
+3. Mixed-case preservation:
+hello iPhone users
+testing JavaScript code
+writing in TypeScript
+
+4. Special characters:
+@username mentions
+#hashtag topics
+$variable names
+
+## Sentence-Level Capitalization Tests
+
+1. Basic sentences:
+this is a test sentence. this should capitalize. and this too! what about this? yes, it should.
+
+2. Multi-line sentences:
+this sentence spans
+multiple lines. this one too
+continues here. and here!
+
+3. Special punctuation:
+what about ellipsis... this should capitalize. and exclamation marks! they should work? of course.
+
+4. Mixed punctuation:
+testing?! this should work. really!? yes indeed. wow...! amazing.
+
+## Edge Cases
+
+1. Code blocks:
+```typescript
+const hello = "world";
+const test = true;
+```
+
+2. Inline code:
+Use `const variable = "test"` in your code. then continue normally.
+
+3. Front matter:
+---
+title: test
+author: me
+---
+
+4. Links:
+[this is a link](https://example.com). this should capitalize.
+
+5. Task lists:
+- [ ] unchecked task
+- [x] checked task
+- [ ] another task
+
+6. Nested lists:
+- outer list
+  - inner list
+    - deeper list
+      - deepest list
+
+7. Tables:
+| header 1 | header 2 |
+|----------|----------|
+| cell 1   | cell 2   |
+| test     | data     |
+
+8. HTML tags:
+<div>
+this is inside html
+</div>
+
+9. LaTeX:
+$$
+\text{this is latex}
+$$
+
+10. Comments:
+<!-- this is a comment -->
+this is after comment
+
+11. Footnotes:
+this has a footnote[^1]. this should capitalize.
+[^1]: footnote text here

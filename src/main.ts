@@ -13,7 +13,6 @@ import { Latex } from "./provider/latex_provider";
 import { Callout } from "./provider/callout_provider";
 import { SuggestionIgnorelist } from "./provider/ignorelist";
 import PeriodInserter from "./period_inserter";
-import FirstWordCapitalizer from "./first_word_capitalizer";
 import NLPCapitalizer from "./nlp_capitalizer";
 import { DatabaseService } from "./db/database";
 import { WordPatterns } from "./word_patterns";
@@ -195,14 +194,12 @@ export default class CompletrPlugin extends Plugin {
     private snippetManager: SnippetManager;
     private _suggestionPopup: SuggestionPopup;
     private _periodInserter: PeriodInserter;
-    private _firstWordCapitalizer: FirstWordCapitalizer;
     private _nlpCapitalizer: NLPCapitalizer;
     private _liveWordTracker: LiveWordTracker;
 
     async onload() {
         this.snippetManager = new SnippetManager();
         this._periodInserter = new PeriodInserter();
-        this._firstWordCapitalizer = new FirstWordCapitalizer();
         this._nlpCapitalizer = new NLPCapitalizer(); // Will be configured after loadSettings
         
         // Initialize LiveWordTracker early so it's available in loadSettings
@@ -219,7 +216,7 @@ export default class CompletrPlugin extends Plugin {
         this.app.workspace.onLayoutReady(() => FrontMatter.loadYAMLKeyCompletions(this.app.metadataCache, this.app.vault.getMarkdownFiles()));
 
         this.registerEditorExtension(markerStateField);
-        this.registerEditorExtension(EditorView.updateListener.of(new CursorActivityListener(this.snippetManager, this._suggestionPopup, this._periodInserter, this._firstWordCapitalizer, this._nlpCapitalizer, this._liveWordTracker, this).listener));
+        this.registerEditorExtension(EditorView.updateListener.of(new CursorActivityListener(this.snippetManager, this._suggestionPopup, this._periodInserter, this._nlpCapitalizer, this._liveWordTracker, this).listener));
 
         this.addSettingTab(new CompletrSettingsTab(this.app, this));
 
@@ -361,7 +358,13 @@ export default class CompletrPlugin extends Plugin {
             editorCallback: (editor) => {
                 this.suggestionPopup.applySelectedItem();
                 this.suggestionPopup.postApplySelectedItem(editor);
-                this._periodInserter.allowInsertPeriod();
+                
+                // Only allow period insertion if we're not in the middle of a word
+                const cursor = editor.getCursor();
+                const line = editor.getLine(cursor.line);
+                if (cursor.ch < line.length && !WordPatterns.isWordCharacter(line[cursor.ch])) {
+                    this._periodInserter.allowInsertPeriod();
+                }
             },
             // @ts-ignore
             isBypassCommand: () => !this._suggestionPopup.isFocused(),
@@ -659,8 +662,8 @@ export default class CompletrPlugin extends Plugin {
             
             // Configure NLP capitalizer with current settings
             this._nlpCapitalizer.updateConfig({
-                capitalizeFirstWordOfLine: this.settings.autoCapitalizeFirstWord,
-                capitalizeFirstWordOfSentence: this.settings.autoCapitalizeFirstWordOfSentence,
+                capitalizeLines: this.settings.autoCapitalizeLines,
+                capitalizeSentences: this.settings.autoCapitalizeSentences,
                 preserveMixedCase: this.settings.preserveMixedCaseWords,
                 debug: this.settings.debugNLPCapitalization
             });
@@ -693,8 +696,8 @@ export default class CompletrPlugin extends Plugin {
         // Update all components with new settings
         this._liveWordTracker.updateSettings(this.settings);
         this._nlpCapitalizer.updateConfig({
-            capitalizeFirstWordOfLine: this.settings.autoCapitalizeFirstWord,
-            capitalizeFirstWordOfSentence: this.settings.autoCapitalizeFirstWordOfSentence,
+            capitalizeLines: this.settings.autoCapitalizeLines,
+            capitalizeSentences: this.settings.autoCapitalizeSentences,
             preserveMixedCase: this.settings.preserveMixedCaseWords,
             debug: this.settings.debugNLPCapitalization
         });
@@ -713,7 +716,6 @@ class CursorActivityListener {
     private readonly snippetManager: SnippetManager;
     private readonly suggestionPopup: SuggestionPopup;
     private readonly periodInserter: PeriodInserter;
-    private readonly firstWordCapitalizer: FirstWordCapitalizer;
     private readonly nlpCapitalizer: NLPCapitalizer;
     private readonly liveWordTracker: LiveWordTracker;
     private readonly plugin: CompletrPlugin;
@@ -722,11 +724,10 @@ class CursorActivityListener {
     private lastCursorLine = -1;
     private lastCursorPosition: EditorPosition | null = null;
 
-    constructor(snippetManager: SnippetManager, suggestionPopup: SuggestionPopup, periodInserter: PeriodInserter, firstWordCapitalizer: FirstWordCapitalizer, nlpCapitalizer: NLPCapitalizer, liveWordTracker: LiveWordTracker, plugin: CompletrPlugin) {
+    constructor(snippetManager: SnippetManager, suggestionPopup: SuggestionPopup, periodInserter: PeriodInserter, nlpCapitalizer: NLPCapitalizer, liveWordTracker: LiveWordTracker, plugin: CompletrPlugin) {
         this.snippetManager = snippetManager;
         this.suggestionPopup = suggestionPopup;
         this.periodInserter = periodInserter;
-        this.firstWordCapitalizer = firstWordCapitalizer;
         this.nlpCapitalizer = nlpCapitalizer;
         this.liveWordTracker = liveWordTracker;
         this.plugin = plugin;
@@ -754,57 +755,49 @@ class CursorActivityListener {
     };
 
     private readonly handleCursorActivity = async (cursor: EditorPosition, update: ViewUpdate) => {
-        this.periodInserter.cancelInsertPeriod()
-        
-        // Track word completion if we have a previous cursor position and document changed
-        if (this.lastCursorPosition && this.cursorTriggeredByChange && update.view.dom) {
-            const editor = this.getEditorFromView(update.view);
-            this.debugLog('CursorActivityListener: Editor found:', !!editor);
-            if (editor) {
-                await this.liveWordTracker.trackWordCompletion(editor, this.lastCursorPosition, cursor);
-                
-                // Check for auto-capitalization when a word boundary trigger is typed
-                if (this.shouldAttemptCapitalization(editor, cursor)) {
-                    // Get the character that was just typed
-                    const justTypedChar = this.getJustTypedCharacter(editor, cursor, this.lastCursorPosition);
-                    if (justTypedChar && (FirstWordCapitalizer.isWordBoundaryTrigger(justTypedChar) || NLPCapitalizer.isSentenceEndTrigger(justTypedChar))) {
-                        // Use NLP capitalizer for enhanced sentence detection
-                        this.nlpCapitalizer.attemptCapitalization(editor, cursor, justTypedChar);
-                    }
-                }
-            }
-        }
-        
-        // This prevents the popup from opening when switching to the previous line
-        const didChangeLine = this.lastCursorLine != cursor.line;
-        if (didChangeLine)
-            this.suggestionPopup.preventNextTrigger();
-        this.lastCursorLine = cursor.line;
+        const editor = this.getEditorFromView(update.view);
+        if (!editor) return;
 
-        // Clear all placeholders when moving cursor somewhere else
-        if (!this.snippetManager.placeholderAtPos(cursor)) {
-            this.snippetManager.clearAllPlaceholders();
-        }
+        const justTypedChar = this.getJustTypedCharacter(editor, cursor, this.lastCursorPosition);
+        this.debugLog('handleCursorActivity - justTypedChar:', justTypedChar);
 
-        // Prevents the suggestion popup from flickering when typing
-        if (this.cursorTriggeredByChange) {
-            this.cursorTriggeredByChange = false;
-            if (!didChangeLine) {
-                this.lastCursorPosition = cursor;
-                return;
+        // Check for capitalization
+        if (justTypedChar) {
+            const isSentenceEnd = NLPCapitalizer.isSentenceEndTrigger(justTypedChar);
+            const isWordBoundary = NLPCapitalizer.isWordBoundaryTrigger(justTypedChar);
+            
+            if ((isSentenceEnd || isWordBoundary) && this.shouldAttemptCapitalization(editor, cursor)) {
+                this.nlpCapitalizer.attemptCapitalization(editor, cursor, justTypedChar);
             }
         }
 
-        this.suggestionPopup.close();
+        // Track word completion for live word tracking
+        if (this.lastCursorPosition) {
+            await this.liveWordTracker.trackWordCompletion(editor, this.lastCursorPosition, cursor);
+        }
+
+        // Handle period insertion
+        if (justTypedChar) {
+            if (this.periodInserter.canInsertPeriod()) {
+                this.periodInserter.attemptInsert(editor);
+            }
+        }
+
         this.lastCursorPosition = cursor;
+        this.lastCursorLine = cursor.line;
     };
 
     private shouldAttemptCapitalization(editor: any, cursor: EditorPosition): boolean {
         // Enable capitalization if either line-level OR sentence-level capitalization is enabled
-        return this.plugin.settings.autoCapitalizeFirstWord || this.plugin.settings.autoCapitalizeFirstWordOfSentence;
+        return this.plugin.settings.autoCapitalizeLines || this.plugin.settings.autoCapitalizeSentences;
     }
 
-    private getJustTypedCharacter(editor: any, cursor: EditorPosition, lastCursor: EditorPosition): string | null {
+    private getJustTypedCharacter(editor: any, cursor: EditorPosition, lastCursor: EditorPosition | null): string | null {
+        // Return null if we don't have a last cursor position
+        if (!lastCursor) {
+            return null;
+        }
+
         // Only handle same-line typing for now
         if (cursor.line !== lastCursor.line) {
             return '\n'; // Line break is also a word boundary
@@ -821,6 +814,10 @@ class CursorActivityListener {
         }
         
         const line = editor.getLine(cursor.line);
+        if (!line) {
+            return null;
+        }
+        
         return line.charAt(cursor.ch - 1);
     }
 

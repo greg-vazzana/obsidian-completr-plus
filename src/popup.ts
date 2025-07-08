@@ -217,6 +217,18 @@ export default class SuggestionPopup extends EditorSuggest<Suggestion> {
         }
         
         const cursor = editor.getCursor()
+        const line = editor.getLine(cursor.line)
+        
+        // Don't add space if we're at the end of a word and the next character is already a space
+        if (cursor.ch < line.length && line[cursor.ch] === ' ') {
+            return
+        }
+        
+        // Don't add space if we're in the middle of a word
+        if (cursor.ch < line.length && WordPatterns.isWordCharacter(line[cursor.ch])) {
+            return
+        }
+        
         editor.replaceRange(" ", cursor)
         editor.setCursor({line: cursor.line, ch: cursor.ch + 1})
     }

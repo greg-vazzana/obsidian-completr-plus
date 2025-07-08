@@ -162,22 +162,22 @@ export default class CompletrSettingsTab extends PluginSettingTab {
                 }));
 
         new Setting(containerEl)
-            .setName("Auto-capitalize first word of line")
+            .setName("Auto-capitalize lines")
             .setDesc("Automatically capitalize the first word of each line as you type. Respects markdown formatting and preserves mixed-case words like 'iPhone'.")
             .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.autoCapitalizeFirstWord)
+                .setValue(this.plugin.settings.autoCapitalizeLines)
                 .onChange(async val => {
-                    this.plugin.settings.autoCapitalizeFirstWord = val;
+                    this.plugin.settings.autoCapitalizeLines = val;
                     await this.plugin.saveSettings();
                 }));
 
         new Setting(containerEl)
-            .setName("Auto-capitalize first word of sentence")
+            .setName("Auto-capitalize sentences")
             .setDesc("Use NLP to detect sentence boundaries and automatically capitalize the first word of each sentence. This works across line breaks and provides more intelligent capitalization.")
             .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.autoCapitalizeFirstWordOfSentence)
+                .setValue(this.plugin.settings.autoCapitalizeSentences)
                 .onChange(async val => {
-                    this.plugin.settings.autoCapitalizeFirstWordOfSentence = val;
+                    this.plugin.settings.autoCapitalizeSentences = val;
                     await this.plugin.saveSettings();
                 }));
 

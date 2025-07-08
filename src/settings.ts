@@ -35,8 +35,8 @@ export interface CompletrSettings {
     frontMatterIgnoreCase: boolean,
     calloutProviderEnabled: boolean,
     calloutProviderSource: CalloutProviderSource,
-    autoCapitalizeFirstWord: boolean,
-    autoCapitalizeFirstWordOfSentence: boolean,
+    autoCapitalizeLines: boolean,
+    autoCapitalizeSentences: boolean,
     preserveMixedCaseWords: boolean,
     debugNLPCapitalization: boolean,
 }
@@ -65,10 +65,10 @@ export const DEFAULT_SETTINGS: CompletrSettings = {
     frontMatterIgnoreCase: true,
     calloutProviderEnabled: true,
     calloutProviderSource: CalloutProviderSource.COMPLETR,
-    autoCapitalizeFirstWord: true,
-    autoCapitalizeFirstWordOfSentence: true,
+    autoCapitalizeLines: true,
+    autoCapitalizeSentences: true,
     preserveMixedCaseWords: true,
-    debugNLPCapitalization: false,
+    debugNLPCapitalization: true,
 }
 
 export function intoCompletrPath(vault: Vault, ...path: string[]): string {
