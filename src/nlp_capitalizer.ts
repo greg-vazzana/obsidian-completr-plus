@@ -145,10 +145,12 @@ export default class NLPCapitalizer {
         const currentLine = editor.getLine(cursor.line);
         
         // For sentence capitalization, focus on potential sentence boundaries
-        // If we just typed after a sentence ending (., !, ?), look for the next word to capitalize
+        // If we just typed a sentence ending (., !, ?), look back to capitalize the sentence we just completed
         if (NLPCapitalizer.isSentenceEndTrigger(trigger)) {
-            // Just finished a sentence, next word should be capitalized
-            return false; // Let the next trigger handle this
+            if (this.config.debug) {
+                console.log('NLPCapitalizer: Sentence ending detected, looking for words to capitalize');
+            }
+            return this.capitalizeCompletedSentence(editor, cursor, currentLine);
         }
 
         // Get surrounding context for better sentence detection
@@ -340,6 +342,88 @@ export default class NLPCapitalizer {
         }
         
         return false;
+    }
+
+    /**
+     * Capitalizes words at the start of completed sentences when a sentence ending is typed
+     */
+    private capitalizeCompletedSentence(
+        editor: Editor,
+        cursor: EditorPosition,
+        currentLine: string
+    ): boolean {
+        if (this.config.debug) {
+            console.log('NLPCapitalizer: capitalizeCompletedSentence', {
+                currentLine,
+                cursorPos: cursor.ch
+            });
+        }
+
+        let madeChanges = false;
+        
+        // Find all sentence boundaries in the line
+        const sentenceEndings = /[.!?]/g;
+        const boundaries: number[] = [];
+        let match;
+        
+        while ((match = sentenceEndings.exec(currentLine)) !== null) {
+            boundaries.push(match.index);
+        }
+        
+        if (this.config.debug) {
+            console.log('NLPCapitalizer: Found sentence boundaries at', boundaries);
+        }
+        
+        // For each sentence boundary, check if there's a sentence after it that needs capitalization
+        for (let i = 0; i < boundaries.length; i++) {
+            const boundaryPos = boundaries[i];
+            const nextBoundaryPos = i + 1 < boundaries.length ? boundaries[i + 1] : currentLine.length;
+            
+            // Get the text of the sentence after this boundary
+            const sentenceStart = boundaryPos + 1;
+            const sentenceText = currentLine.substring(sentenceStart, nextBoundaryPos);
+            
+            // Look for the first word in this sentence
+            const wordMatch = sentenceText.match(/^\s*([a-z]+)/);
+            
+            if (wordMatch && wordMatch[1]) {
+                const lowercaseWord = wordMatch[1];
+                const wordStartInSentence = wordMatch.index! + (wordMatch[0].length - lowercaseWord.length);
+                const absoluteWordStart = sentenceStart + wordStartInSentence;
+                const absoluteWordEnd = absoluteWordStart + lowercaseWord.length;
+                
+                if (this.config.debug) {
+                    console.log('NLPCapitalizer: Found sentence to capitalize', {
+                        boundaryPos,
+                        sentenceText: `"${sentenceText}"`,
+                        lowercaseWord,
+                        absoluteWordStart,
+                        absoluteWordEnd
+                    });
+                }
+                
+                if (this.shouldCapitalizeWord(lowercaseWord)) {
+                    const capitalizedWord = this.capitalizeWord(lowercaseWord);
+                    
+                    const startPos: EditorPosition = { line: cursor.line, ch: absoluteWordStart };
+                    const endPos: EditorPosition = { line: cursor.line, ch: absoluteWordEnd };
+                    
+                    editor.replaceRange(capitalizedWord, startPos, endPos);
+                    
+                    if (this.config.debug) {
+                        console.log('NLPCapitalizer: Capitalized completed sentence word', {
+                            original: lowercaseWord,
+                            capitalized: capitalizedWord,
+                            position: { start: startPos, end: endPos }
+                        });
+                    }
+                    
+                    madeChanges = true;
+                }
+            }
+        }
+        
+        return madeChanges;
     }
 
     /**
