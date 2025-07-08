@@ -13,6 +13,7 @@
 	"devDependencies": {
 		"@codemirror/state": "^6.1.2",
 		"@types/node": "^16.11.6",
+		"@types/sql.js": "^1.4.4",
 		"@typescript-eslint/eslint-plugin": "^5.30.7",
 		"@typescript-eslint/parser": "^5.30.7",
 		"builtin-modules": "^3.3.0",
@@ -24,6 +25,7 @@
 	},
 	"dependencies": {
 		"compromise": "^14.14.4",
-		"obsidian-callout-manager": "^1.0.2-alpha1"
+		"obsidian-callout-manager": "^1.0.2-alpha1",
+		"sql.js": "^1.8.0"
 	}
 }

@@ -22,6 +22,14 @@ fs.copyFileSync('styles.css', 'dist/styles.css');
 fs.copyFileSync('manifest.json', 'dist/manifest.json');
 fs.copyFileSync('ignored_suggestions.txt', 'dist/ignored_suggestions.txt');
 
+// Copy sql.js WASM file
+const wasmPath = 'node_modules/sql.js/dist/sql-wasm.wasm';
+if (fs.existsSync(wasmPath)) {
+    fs.copyFileSync(wasmPath, 'dist/sql-wasm.wasm');
+} else {
+    console.warn('sql.js WASM file not found - run npm install first');
+}
+
 esbuild.build({
     banner: {
         js: banner,
