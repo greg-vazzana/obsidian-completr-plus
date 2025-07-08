@@ -29,7 +29,7 @@ class LiveWordTracker {
     }
 
     private debugLog(message: string, ...args: any[]) {
-        if (this.settings.debugNLPCapitalization) {
+        if (this.settings.debugCapitalization) {
             console.log(message, ...args);
         }
     }
@@ -227,7 +227,7 @@ export default class CompletrPlugin extends Plugin {
 
         if ((this.app.vault as any).config?.legacyEditor) {
             // This is an important warning, but respect debug setting
-            if (this.settings.debugNLPCapitalization) {
+            if (this.settings.debugCapitalization) {
                 console.log("Completr: Without Live Preview enabled, most features of Completr will not work properly!");
             }
         }
@@ -670,7 +670,7 @@ export default class CompletrPlugin extends Plugin {
                 capitalizeLines: this.settings.autoCapitalizeLines,
                 capitalizeSentences: this.settings.autoCapitalizeSentences,
                 preserveMixedCase: this.settings.preserveMixedCaseWords,
-                debug: this.settings.debugNLPCapitalization
+                debug: this.settings.debugCapitalization
             });
         } catch (error) {
             console.error('Error loading Completr providers:', error);
@@ -704,7 +704,7 @@ export default class CompletrPlugin extends Plugin {
             capitalizeLines: this.settings.autoCapitalizeLines,
             capitalizeSentences: this.settings.autoCapitalizeSentences,
             preserveMixedCase: this.settings.preserveMixedCaseWords,
-            debug: this.settings.debugNLPCapitalization
+            debug: this.settings.debugCapitalization
         });
     }
 
@@ -743,7 +743,7 @@ class CursorActivityListener {
     }
 
     private debugLog(message: string, ...args: any[]) {
-        if (this.plugin.settings.debugNLPCapitalization) {
+        if (this.plugin.settings.debugCapitalization) {
             console.log(message, ...args);
         }
     }

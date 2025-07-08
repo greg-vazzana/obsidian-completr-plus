@@ -22,7 +22,7 @@ This implementation enhances the Obsidian Completr plugin with intelligent sente
 - **New Options**:
   - `autoCapitalizeFirstWordOfSentence`: Enable NLP sentence detection
   - `preserveMixedCaseWords`: Protect iPhone, JavaScript, etc.
-  - `debugNLPCapitalization`: Console logging for troubleshooting
+  - `debugCapitalization`: Console logging for troubleshooting
 
 #### 3. **Settings UI** (`src/settings_tab.ts`)
 - **New Controls**: Three new toggle settings with descriptions

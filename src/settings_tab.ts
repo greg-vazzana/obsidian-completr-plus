@@ -162,6 +162,10 @@ export default class CompletrSettingsTab extends PluginSettingTab {
                 }));
 
         new Setting(containerEl)
+            .setName("Authoring")
+            .setHeading();
+
+        new Setting(containerEl)
             .setName("Auto-capitalize lines")
             .setDesc("Automatically capitalize the first word of each line as you type. Respects markdown formatting and preserves mixed-case words like 'iPhone'.")
             .addToggle(toggle => toggle
@@ -192,12 +196,12 @@ export default class CompletrSettingsTab extends PluginSettingTab {
                 }));
 
         new Setting(containerEl)
-            .setName("Debug NLP capitalization")
+            .setName("Debug capitalization")
             .setDesc("Enable debug logging for NLP-based capitalization. Useful for troubleshooting but may impact performance. Check the developer console for logs.")
             .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.debugNLPCapitalization)
+                .setValue(this.plugin.settings.debugCapitalization)
                 .onChange(async val => {
-                    this.plugin.settings.debugNLPCapitalization = val;
+                    this.plugin.settings.debugCapitalization = val;
                     await this.plugin.saveSettings();
                 }));
 

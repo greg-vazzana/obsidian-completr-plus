@@ -38,7 +38,7 @@ export interface CompletrSettings {
     autoCapitalizeLines: boolean,
     autoCapitalizeSentences: boolean,
     preserveMixedCaseWords: boolean,
-    debugNLPCapitalization: boolean,
+    debugCapitalization: boolean,
 }
 
 export const DEFAULT_SETTINGS: CompletrSettings = {
@@ -68,7 +68,7 @@ export const DEFAULT_SETTINGS: CompletrSettings = {
     autoCapitalizeLines: true,
     autoCapitalizeSentences: true,
     preserveMixedCaseWords: true,
-    debugNLPCapitalization: false,
+    debugCapitalization: false,
 }
 
 export function intoCompletrPath(vault: Vault, ...path: string[]): string {
