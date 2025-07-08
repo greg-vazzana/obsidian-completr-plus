@@ -778,7 +778,7 @@ class CursorActivityListener {
 
         // Handle period insertion
         if (justTypedChar) {
-            if (this.periodInserter.canInsertPeriod()) {
+            if (this.plugin.settings.insertPeriodAfterSpaces && this.periodInserter.canInsertPeriod()) {
                 this.periodInserter.attemptInsert(editor);
             }
         }
