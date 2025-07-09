@@ -1,7 +1,7 @@
 import { Notice, Vault } from "obsidian";
 import { getApi } from "obsidian-callout-manager";
 
-import { ERROR_NOTICE_DURATION_MS, CONFIG_FILES, ERROR_MESSAGES, PATTERNS } from "../constants";
+import { ERROR_NOTICE_DURATION_MS, CONFIG_FILES, PATTERNS } from "../constants";
 import CompletrPlugin from "../main";
 import { CalloutProviderSource, CompletrSettings, intoCompletrPath } from "../settings";
 import { SuggestionIgnorelist } from "./ignorelist";

@@ -1,5 +1,5 @@
-import { EditorPosition, KeymapContext, MarkdownView, Notice, Plugin, TFile } from "obsidian";
-import { EditorView, ViewUpdate } from "@codemirror/view";
+import { KeymapContext, MarkdownView, Notice, Plugin, TFile } from "obsidian";
+import { EditorView } from "@codemirror/view";
 
 import { SUCCESS_NOTICE_DURATION_MS } from "./constants";
 import { CursorActivityListener } from "./cursor_activity_listener";

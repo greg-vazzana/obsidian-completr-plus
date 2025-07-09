@@ -40,15 +40,6 @@ interface WordListRow {
     created_at: string;
 }
 
-interface FrontMatterRow {
-    id?: number;
-    key: string;
-    value: string;
-    file_path?: string;
-    frequency: number;
-    created_at: string;
-}
-
 export class SQLiteDatabaseService {
     private db: Database | null = null;
     private SQL: SqlJsStatic | null = null;
