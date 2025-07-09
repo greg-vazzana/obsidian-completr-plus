@@ -1,4 +1,3 @@
-import { Suggestion } from "./provider/provider";
 import {
     App,
     Editor,
@@ -9,12 +8,14 @@ import {
     getIcon,
     TFile
 } from "obsidian";
-import SnippetManager from "./snippet_manager";
-import { CompletrSettings } from "./settings";
-import {matchWordBackwards} from "./editor_helpers";
+
+import { matchWordBackwards } from "./editor_helpers";
 import { SuggestionIgnorelist } from "./provider/ignorelist";
-import { WordPatterns } from "./word_patterns";
+import { Suggestion } from "./provider/provider";
 import { providerRegistry } from "./provider/provider_registry";
+import { CompletrSettings } from "./settings";
+import SnippetManager from "./snippet_manager";
+import { WordPatterns } from "./word_patterns";
 
 export default class SuggestionPopup extends EditorSuggest<Suggestion> {
     /**

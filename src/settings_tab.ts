@@ -1,12 +1,14 @@
+import { TextDecoder } from "util";
+
 import { App, ButtonComponent, Modal, Notice, PluginSettingTab, Setting } from "obsidian";
-import {isInstalled as isCalloutManagerInstalled} from "obsidian-callout-manager";
+import { isInstalled as isCalloutManagerInstalled } from "obsidian-callout-manager";
+import { detect } from "jschardet";
+
+import { FILE_PROCESSING_BATCH_SIZE, FILE_ENCODING_DETECTION_BUFFER_SIZE } from "./constants";
 import CompletrPlugin from "./main";
 import { Scanner } from "./provider/scanner_provider";
 import { WordList } from "./provider/word_list_provider";
 import { CalloutProviderSource, CompletrSettings, WordInsertionMode } from "./settings";
-import { TextDecoder } from "util";
-import { detect } from "jschardet";
-import { FILE_PROCESSING_BATCH_SIZE, FILE_ENCODING_DETECTION_BUFFER_SIZE } from "./constants";
 
 export default class CompletrSettingsTab extends PluginSettingTab {
 

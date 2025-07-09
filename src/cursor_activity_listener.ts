@@ -1,13 +1,14 @@
 import { EditorPosition, MarkdownView } from "obsidian";
 import { EditorView, ViewUpdate } from "@codemirror/view";
-import { posFromIndex } from "./editor_helpers";
-import SnippetManager from "./snippet_manager";
-import SuggestionPopup from "./popup";
-import PeriodInserter from "./period_inserter";
-import NLPCapitalizer from "./nlp_capitalizer";
-import { LiveWordTracker } from "./live_word_tracker";
-import { CompletrSettings } from "./settings";
+
 import { NLP_CAPITALIZATION_DEBOUNCE_MS } from "./constants";
+import { posFromIndex } from "./editor_helpers";
+import { LiveWordTracker } from "./live_word_tracker";
+import NLPCapitalizer from "./nlp_capitalizer";
+import PeriodInserter from "./period_inserter";
+import SuggestionPopup from "./popup";
+import { CompletrSettings } from "./settings";
+import SnippetManager from "./snippet_manager";
 
 export class CursorActivityListener {
 

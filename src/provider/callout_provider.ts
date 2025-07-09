@@ -1,10 +1,11 @@
-import { getApi } from "obsidian-callout-manager";
-import { Suggestion, SuggestionContext, SuggestionProvider } from "./provider";
-import { CalloutProviderSource, CompletrSettings, intoCompletrPath } from "../settings";
 import { Notice, Vault } from "obsidian";
-import { SuggestionIgnorelist } from "./ignorelist";
-import CompletrPlugin from "src/main";
+import { getApi } from "obsidian-callout-manager";
+
 import { ERROR_NOTICE_DURATION_MS } from "../constants";
+import CompletrPlugin from "../main";
+import { CalloutProviderSource, CompletrSettings, intoCompletrPath } from "../settings";
+import { SuggestionIgnorelist } from "./ignorelist";
+import { Suggestion, SuggestionContext, SuggestionProvider } from "./provider";
 
 const CALLOUT_SUGGESTIONS_FILE = "callout_suggestions.json";
 

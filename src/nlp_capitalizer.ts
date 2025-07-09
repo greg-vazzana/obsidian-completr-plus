@@ -1,7 +1,8 @@
 import { Editor, EditorPosition } from "obsidian";
 import nlp from "compromise";
-import { isInFrontMatterBlock } from "./editor_helpers";
+
 import { DEBUG_SENTENCE_MAX_LENGTH, DEBUG_FULL_TEXT_MAX_LENGTH } from "./constants";
+import { isInFrontMatterBlock } from "./editor_helpers";
 
 /**
  * Configuration options for NLP capitalization

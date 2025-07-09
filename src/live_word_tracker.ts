@@ -1,10 +1,11 @@
 import { EditorPosition } from "obsidian";
-import { CompletrSettings } from "./settings";
+
+import { LIVE_WORD_TRACKER_BATCH_DELAY_MS } from "./constants";
 import { SQLiteDatabaseService } from "./db/sqlite_database_service";
-import { WordPatterns } from "./word_patterns";
 import { SuggestionIgnorelist } from "./provider/ignorelist";
 import { Scanner } from "./provider/scanner_provider";
-import { LIVE_WORD_TRACKER_BATCH_DELAY_MS } from "./constants";
+import { CompletrSettings } from "./settings";
+import { WordPatterns } from "./word_patterns";
 
 export class LiveWordTracker {
     private db: SQLiteDatabaseService | null = null;

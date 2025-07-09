@@ -1,25 +1,26 @@
-import { EditorPosition, KeymapContext, MarkdownView, Notice, Plugin, TFile, } from "obsidian";
-import SnippetManager from "./snippet_manager";
-import SuggestionPopup, { SelectionDirection } from "./popup";
-import { CompletrSettings, DEFAULT_SETTINGS } from "./settings";
-import { WordList } from "./provider/word_list_provider";
-import { Scanner } from "./provider/scanner_provider";
-import CompletrSettingsTab from "./settings_tab";
+import { EditorPosition, KeymapContext, MarkdownView, Notice, Plugin, TFile } from "obsidian";
 import { EditorView, ViewUpdate } from "@codemirror/view";
-import { editorToCodeMirrorState, posFromIndex } from "./editor_helpers";
-import { markerStateField } from "./marker_state_field";
-import { FrontMatter } from "./provider/front_matter_provider";
-import { Latex } from "./provider/latex_provider";
-import { Callout } from "./provider/callout_provider";
-import { SuggestionIgnorelist } from "./provider/ignorelist";
-import PeriodInserter from "./period_inserter";
-import NLPCapitalizer from "./nlp_capitalizer";
-import { SQLiteDatabaseService } from "./db/sqlite_database_service";
-import { WordPatterns } from "./word_patterns";
-import { LiveWordTracker } from "./live_word_tracker";
-import { CursorActivityListener } from "./cursor_activity_listener";
+
 import { SUCCESS_NOTICE_DURATION_MS } from "./constants";
+import { CursorActivityListener } from "./cursor_activity_listener";
+import { SQLiteDatabaseService } from "./db/sqlite_database_service";
+import { editorToCodeMirrorState, posFromIndex } from "./editor_helpers";
+import { LiveWordTracker } from "./live_word_tracker";
+import { markerStateField } from "./marker_state_field";
+import NLPCapitalizer from "./nlp_capitalizer";
+import PeriodInserter from "./period_inserter";
+import SuggestionPopup, { SelectionDirection } from "./popup";
+import { Callout } from "./provider/callout_provider";
+import { FrontMatter } from "./provider/front_matter_provider";
+import { SuggestionIgnorelist } from "./provider/ignorelist";
+import { Latex } from "./provider/latex_provider";
 import { providerRegistry } from "./provider/provider_registry";
+import { Scanner } from "./provider/scanner_provider";
+import { WordList } from "./provider/word_list_provider";
+import { CompletrSettings, DEFAULT_SETTINGS } from "./settings";
+import CompletrSettingsTab from "./settings_tab";
+import SnippetManager from "./snippet_manager";
+import { WordPatterns } from "./word_patterns";
 
 
 
@@ -550,14 +551,14 @@ export default class CompletrPlugin extends Plugin {
         }
     }
 
-    async scanCurrentFile() {
+    private async scanCurrentFile() {
         const activeFile = this.app.workspace.getActiveFile();
         if (!activeFile || !this.settings.scanEnabled) return;
 
         await Scanner.scanFile(this.settings, activeFile);
     }
 
-    async scanAllFiles() {
+    private async scanAllFiles() {
         if (!this.settings.scanEnabled) return;
         const files = this.app.vault.getFiles();
         await Scanner.scanFiles(this.settings, files);

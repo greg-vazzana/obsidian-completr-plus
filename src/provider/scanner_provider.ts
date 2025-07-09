@@ -1,10 +1,10 @@
 import { TFile, Vault } from "obsidian";
+
+import { SQLiteDatabaseService, Word } from "../db/sqlite_database_service";
 import { CompletrSettings } from "../settings";
-import { DictionaryProvider } from "./dictionary_provider";
-import { Word } from "../db/sqlite_database_service";
-import { SuggestionIgnorelist } from "./ignorelist";
-import { SQLiteDatabaseService } from "../db/sqlite_database_service";
 import { WordPatterns } from "../word_patterns";
+import { DictionaryProvider } from "./dictionary_provider";
+import { SuggestionIgnorelist } from "./ignorelist";
 
 class ScannerSuggestionProvider extends DictionaryProvider {
     readonly wordMap: Map<string, Map<string, Word>> = new Map();
