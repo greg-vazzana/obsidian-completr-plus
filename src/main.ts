@@ -18,6 +18,7 @@ import { SQLiteDatabaseService } from "./db/sqlite_database_service";
 import { WordPatterns } from "./word_patterns";
 import { LiveWordTracker } from "./live_word_tracker";
 import { CursorActivityListener } from "./cursor_activity_listener";
+import { SUCCESS_NOTICE_DURATION_MS } from "./constants";
 
 
 
@@ -441,7 +442,7 @@ export default class CompletrPlugin extends Plugin {
 
     private showSuccessNotice(message: string) {
         // Add a success icon to make it visually distinct from error notices
-        new Notice(`✅ ${message}`, 4000); // Show for 4 seconds
+        new Notice(`✅ ${message}`, SUCCESS_NOTICE_DURATION_MS);
     }
 
     private getWordAtCursor(line: string, cursorPosition: number): string | null {

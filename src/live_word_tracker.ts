@@ -4,13 +4,13 @@ import { SQLiteDatabaseService } from "./db/sqlite_database_service";
 import { WordPatterns } from "./word_patterns";
 import { SuggestionIgnorelist } from "./provider/ignorelist";
 import { Scanner } from "./provider/scanner_provider";
+import { LIVE_WORD_TRACKER_BATCH_DELAY_MS } from "./constants";
 
 export class LiveWordTracker {
     private db: SQLiteDatabaseService | null = null;
     private settings: CompletrSettings;
     private batchUpdates: Map<string, number> = new Map();
     private batchTimeout: NodeJS.Timeout | null = null;
-    private readonly BATCH_DELAY_MS = 1000; // 1 second delay for batching
 
     constructor(settings: CompletrSettings) {
         this.settings = settings;
@@ -140,7 +140,7 @@ export class LiveWordTracker {
 
         this.batchTimeout = setTimeout(async () => {
             await this.flushBatchUpdates(scanSourceId);
-        }, this.BATCH_DELAY_MS);
+        }, LIVE_WORD_TRACKER_BATCH_DELAY_MS);
     }
 
     private async flushBatchUpdates(scanSourceId: number): Promise<void> {

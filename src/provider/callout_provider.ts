@@ -4,6 +4,7 @@ import { CalloutProviderSource, CompletrSettings, intoCompletrPath } from "../se
 import { Notice, Vault } from "obsidian";
 import { SuggestionIgnorelist } from "./ignorelist";
 import CompletrPlugin from "src/main";
+import { ERROR_NOTICE_DURATION_MS } from "../constants";
 
 const CALLOUT_SUGGESTIONS_FILE = "callout_suggestions.json";
 
@@ -109,7 +110,7 @@ class CalloutSuggestionProvider implements SuggestionProvider {
                     allowIcons: true,
                 });
             } catch (e) {
-                new Notice(`${e.message}. Using default callout types.`, 3000);
+                new Notice(`${e.message}. Using default callout types.`, ERROR_NOTICE_DURATION_MS);
                 this.loadedSuggestions = generateDefaulCalloutOptions();
             }
         }

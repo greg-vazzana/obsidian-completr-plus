@@ -3,6 +3,7 @@ import { createHash } from 'crypto';
 import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
 import { SQLITE_SCHEMA } from './sqlite_schema';
 import { intoCompletrPath } from '../settings';
+import { DATABASE_SAVE_INTERVAL_MS } from '../constants';
 
 // Import the same interfaces from the original database service
 interface Source {
@@ -56,7 +57,6 @@ export class SQLiteDatabaseService {
     private saveTimer: NodeJS.Timer | null = null;
     private isDirty: boolean = false;
     private isInitialized: boolean = false;
-    private readonly SAVE_INTERVAL = 5 * 60 * 1000; // 5 minutes in milliseconds
 
     constructor(vault: Vault) {
         this.vault = vault;
@@ -153,7 +153,7 @@ export class SQLiteDatabaseService {
             if (this.isDirty) {
                 await this.saveDatabase();
             }
-        }, this.SAVE_INTERVAL);
+        }, DATABASE_SAVE_INTERVAL_MS);
     }
 
     private markDirty(): void {

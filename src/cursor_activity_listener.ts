@@ -7,6 +7,7 @@ import PeriodInserter from "./period_inserter";
 import NLPCapitalizer from "./nlp_capitalizer";
 import { LiveWordTracker } from "./live_word_tracker";
 import { CompletrSettings } from "./settings";
+import { NLP_CAPITALIZATION_DEBOUNCE_MS } from "./constants";
 
 export class CursorActivityListener {
 
@@ -23,7 +24,6 @@ export class CursorActivityListener {
     
     // Debouncing for NLP capitalization
     private nlpDebounceTimeout: NodeJS.Timeout | null = null;
-    private readonly NLP_DEBOUNCE_DELAY = 100; // 100ms debounce for NLP operations
 
     constructor(
         snippetManager: SnippetManager, 
@@ -110,7 +110,7 @@ export class CursorActivityListener {
             } catch (error) {
                 console.error('Error in debounced NLP capitalization:', error);
             }
-        }, this.NLP_DEBOUNCE_DELAY);
+        }, NLP_CAPITALIZATION_DEBOUNCE_MS);
     }
 
     cleanup() {

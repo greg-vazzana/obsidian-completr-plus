@@ -3,6 +3,7 @@ import { CompletrSettings, intoCompletrPath } from "../settings";
 import { BlockType, getLatexBlockType, maybeLowerCase } from "../editor_helpers";
 import { Notice, Vault } from "obsidian";
 import { SuggestionIgnorelist } from "./ignorelist";
+import { ERROR_NOTICE_DURATION_MS } from "../constants";
 
 function substringUntil(str: string, delimiter: string): string {
     let index = str.indexOf(delimiter);
@@ -76,7 +77,7 @@ class LatexSuggestionProvider implements SuggestionProvider {
                 this.loadedCommands = commands;
             } catch (e) {
                 console.log("Completr latex commands parse error:", e.message);
-                new Notice("Failed to parse latex commands file " + path + ". Using default commands.", 3000);
+                new Notice("Failed to parse latex commands file " + path + ". Using default commands.", ERROR_NOTICE_DURATION_MS);
                 this.loadedCommands = generateDefaultLatexCommands();
             }
         }

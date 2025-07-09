@@ -1,6 +1,7 @@
 import { Editor, EditorPosition } from "obsidian";
 import nlp from "compromise";
 import { isInFrontMatterBlock } from "./editor_helpers";
+import { DEBUG_SENTENCE_MAX_LENGTH, DEBUG_FULL_TEXT_MAX_LENGTH } from "./constants";
 
 /**
  * Configuration options for NLP capitalization
@@ -228,7 +229,7 @@ export default class NLPCapitalizer {
             
             if (this.config.debug) {
                 console.log(`NLPCapitalizer: Checking sentence ${i}:`, {
-                    sentence: sentence.substring(0, 50) + (sentence.length > 50 ? '...' : ''),
+                    sentence: sentence.substring(0, DEBUG_SENTENCE_MAX_LENGTH) + (sentence.length > DEBUG_SENTENCE_MAX_LENGTH ? '...' : ''),
                     currentPos,
                     sentenceEnd,
                     absolutePos,
@@ -443,7 +444,7 @@ export default class NLPCapitalizer {
     ): boolean {
         if (this.config.debug) {
             console.log('NLPCapitalizer: capitalizeSentenceFirstWord called', {
-                sentence: sentence.substring(0, 50) + (sentence.length > 50 ? '...' : ''),
+                sentence: sentence.substring(0, DEBUG_SENTENCE_MAX_LENGTH) + (sentence.length > DEBUG_SENTENCE_MAX_LENGTH ? '...' : ''),
                 sentenceStartPos,
                 cursorAbsolutePos
             });
@@ -514,7 +515,7 @@ export default class NLPCapitalizer {
         
         if (this.config.debug) {
             console.log('NLPCapitalizer: Sentence capitalization applied', {
-                sentence: sentence.substring(0, 50) + '...',
+                sentence: sentence.substring(0, DEBUG_SENTENCE_MAX_LENGTH) + '...',
                 original: cleanFirstWord,
                 capitalized: capitalizedWord
             });
@@ -541,9 +542,9 @@ export default class NLPCapitalizer {
             console.log('NLPCapitalizer: findWordPositionInEditor', {
                 word,
                 sentenceStartPos,
-                fullText: fullText.substring(0, 200) + (fullText.length > 200 ? '...' : ''),
+                fullText: fullText.substring(0, DEBUG_FULL_TEXT_MAX_LENGTH) + (fullText.length > DEBUG_FULL_TEXT_MAX_LENGTH ? '...' : ''),
                 wordIndex,
-                searchSubstring: fullText.substring(sentenceStartPos, sentenceStartPos + 50)
+                searchSubstring: fullText.substring(sentenceStartPos, sentenceStartPos + DEBUG_SENTENCE_MAX_LENGTH)
             });
         }
         

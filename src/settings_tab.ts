@@ -6,6 +6,7 @@ import { WordList } from "./provider/word_list_provider";
 import { CalloutProviderSource, CompletrSettings, WordInsertionMode } from "./settings";
 import { TextDecoder } from "util";
 import { detect } from "jschardet";
+import { FILE_PROCESSING_BATCH_SIZE, FILE_ENCODING_DETECTION_BUFFER_SIZE } from "./constants";
 
 export default class CompletrSettingsTab extends PluginSettingTab {
 
@@ -297,7 +298,7 @@ export default class CompletrSettingsTab extends PluginSettingTab {
                                 let scannedCount = 0;
                                 
                                 // Process files in batches to show progress
-                                const batchSize = 50;
+                                const batchSize = FILE_PROCESSING_BATCH_SIZE;
                                 for (let i = 0; i < files.length; i += batchSize) {
                                     const batch = files.slice(i, i + batchSize);
                                     await Scanner.scanFiles(this.plugin.settings, batch);
@@ -365,7 +366,7 @@ export default class CompletrSettingsTab extends PluginSettingTab {
 
                 try {
                     const buf = await file.arrayBuffer();
-                    const encoding = detect(Buffer.from(buf.slice(0, 1024))).encoding;
+                    const encoding = detect(Buffer.from(buf.slice(0, FILE_ENCODING_DETECTION_BUFFER_SIZE))).encoding;
                     const text = new TextDecoder(encoding).decode(buf);
                     const success = await WordList.importWordList(this.app.vault, file.name, text, this.plugin.settings);
                     changed ||= success;
