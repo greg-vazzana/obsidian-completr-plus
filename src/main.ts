@@ -14,11 +14,11 @@ import { Callout } from "./provider/callout_provider";
 import { SuggestionIgnorelist } from "./provider/ignorelist";
 import PeriodInserter from "./period_inserter";
 import NLPCapitalizer from "./nlp_capitalizer";
-import { DatabaseService } from "./db/database";
+import { SQLiteDatabaseService } from "./db/sqlite_database_service";
 import { WordPatterns } from "./word_patterns";
 
 class LiveWordTracker {
-    private db: DatabaseService | null = null;
+    private db: SQLiteDatabaseService | null = null;
     private settings: CompletrSettings;
     private batchUpdates: Map<string, number> = new Map();
     private batchTimeout: NodeJS.Timeout | null = null;
@@ -34,7 +34,7 @@ class LiveWordTracker {
         }
     }
 
-    setDatabase(db: DatabaseService) {
+    setDatabase(db: SQLiteDatabaseService) {
         this.db = db;
     }
 
@@ -160,9 +160,25 @@ class LiveWordTracker {
             return;
         }
 
+        console.log('DEBUG: flushBatchUpdates - scanSourceId:', scanSourceId);
+        console.log('DEBUG: flushBatchUpdates - batchUpdates size:', this.batchUpdates.size);
+
         try {
             // Process all batched updates
             for (const [word, incrementBy] of this.batchUpdates) {
+                console.log('DEBUG: flushBatchUpdates - processing word:', word, 'incrementBy:', incrementBy, 'scanSourceId:', scanSourceId);
+                
+                // Check for undefined parameters
+                if (word === undefined) {
+                    console.error('DEBUG: UNDEFINED WORD in flushBatchUpdates');
+                }
+                if (scanSourceId === undefined) {
+                    console.error('DEBUG: UNDEFINED SCAN_SOURCE_ID in flushBatchUpdates');
+                }
+                if (incrementBy === undefined) {
+                    console.error('DEBUG: UNDEFINED INCREMENT_BY in flushBatchUpdates');
+                }
+                
                 await this.db.addOrIncrementWord(word, scanSourceId, incrementBy);
             }
 
@@ -197,6 +213,7 @@ export default class CompletrPlugin extends Plugin {
     private _nlpCapitalizer: NLPCapitalizer;
     private _liveWordTracker: LiveWordTracker;
     private _cursorActivityListener: CursorActivityListener;
+    private _database: SQLiteDatabaseService | null = null;
 
     async onload() {
         this.snippetManager = new SnippetManager();
@@ -638,6 +655,9 @@ export default class CompletrPlugin extends Plugin {
         if (this._cursorActivityListener) {
             this._cursorActivityListener.cleanup();
         }
+        if (this._database) {
+            await this._database.shutdown();
+        }
     }
 
     async loadSettings() {
@@ -657,9 +677,9 @@ export default class CompletrPlugin extends Plugin {
             await Scanner.initialize();
             
             // Set up live word tracker with database and updated settings
-            const db = new DatabaseService(this.app.vault);
-            await db.initialize();
-            this._liveWordTracker.setDatabase(db);
+            this._database = new SQLiteDatabaseService(this.app.vault);
+            await this._database.initialize();
+            this._liveWordTracker.setDatabase(this._database);
             this._liveWordTracker.updateSettings(this.settings);
             
             await Latex.loadCommands(this.app.vault);

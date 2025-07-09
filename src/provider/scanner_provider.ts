@@ -1,19 +1,19 @@
 import { TFile, Vault } from "obsidian";
 import { CompletrSettings } from "../settings";
 import { DictionaryProvider } from "./dictionary_provider";
-import { Word } from "../db/database";
+import { Word } from "../db/sqlite_database_service";
 import { SuggestionIgnorelist } from "./ignorelist";
-import { DatabaseService } from "../db/database";
+import { SQLiteDatabaseService } from "../db/sqlite_database_service";
 import { WordPatterns } from "../word_patterns";
 
 class ScannerSuggestionProvider extends DictionaryProvider {
     readonly wordMap: Map<string, Map<string, Word>> = new Map();
-    private db: DatabaseService | null = null;
+    private db: SQLiteDatabaseService | null = null;
     private scanSourceId: number | null = null;
     private frequencyUpdates: Map<string, number> = new Map(); // Track frequency increments during scanning
 
     setVault(vault: Vault) {
-        this.db = new DatabaseService(vault);
+        this.db = new SQLiteDatabaseService(vault);
     }
 
     async initialize(): Promise<void> {

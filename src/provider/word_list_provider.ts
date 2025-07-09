@@ -1,9 +1,9 @@
 import { CompletrSettings, intoCompletrPath } from "../settings";
 import { DictionaryProvider } from "./dictionary_provider";
-import { Word } from "../db/database";
+import { Word } from "../db/sqlite_database_service";
 import { Vault } from "obsidian";
 import { SuggestionIgnorelist } from "./ignorelist";
-import { DatabaseService } from "../db/database";
+import { SQLiteDatabaseService } from "../db/sqlite_database_service";
 import { WordPatterns } from "../word_patterns";
 
 const WORD_LISTS_FOLDER_PATH = "wordLists";
@@ -11,12 +11,12 @@ const NEW_LINE_REGEX = /\r?\n/;
 
 class WordListSuggestionProvider extends DictionaryProvider {
     readonly wordMap: Map<string, Map<string, Word>> = new Map();
-    private db: DatabaseService | null = null;
+    private db: SQLiteDatabaseService | null = null;
     private vault: Vault | null = null;
 
     setVault(vault: Vault) {
         this.vault = vault;
-        this.db = new DatabaseService(vault);
+        this.db = new SQLiteDatabaseService(vault);
     }
 
     isEnabled(settings: CompletrSettings): boolean {

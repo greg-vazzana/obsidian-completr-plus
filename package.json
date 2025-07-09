@@ -4,8 +4,8 @@
 	"description": "This plugin provides advanced auto-completion capabilities for Obsidian",
 	"main": "main.js",
 	"scripts": {
-		"dev": "node esbuild.config.mjs",
-		"build": "node esbuild.config.mjs production"
+		"dev": "node esbuild.config.mjs && cp dist/main.js dist/styles.css .",
+		"build": "node esbuild.config.mjs production && cp dist/main.js dist/styles.css ."
 	},
 	"keywords": [],
 	"author": "tth05",

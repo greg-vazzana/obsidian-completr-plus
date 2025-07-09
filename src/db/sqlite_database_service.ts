@@ -2,6 +2,7 @@ import { Notice, Vault } from 'obsidian';
 import { createHash } from 'crypto';
 import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
 import { SQLITE_SCHEMA } from './sqlite_schema';
+import { intoCompletrPath } from '../settings';
 
 // Import the same interfaces from the original database service
 interface Source {
@@ -68,14 +69,13 @@ export class SQLiteDatabaseService {
         }
 
         try {
-            // Initialize sql.js
+            // Load WASM file using vault adapter - same approach as ignorelist.ts
+            const wasmPath = intoCompletrPath(this.vault, 'sql-wasm.wasm');
+            const wasmBinary = await this.vault.adapter.readBinary(wasmPath);
+            
+            // Initialize sql.js with the WASM binary data
             this.SQL = await initSqlJs({
-                locateFile: (file: string) => {
-                    if (file === 'sql-wasm.wasm') {
-                        return 'sql-wasm.wasm';
-                    }
-                    return file;
-                }
+                wasmBinary: new Uint8Array(wasmBinary)
             });
 
             // Try to load existing database file
@@ -184,6 +184,21 @@ export class SQLiteDatabaseService {
         }
     }
 
+    private debugExec(sql: string, params?: any[]) {
+        console.log('DEBUG: Executing SQL:', sql);
+        console.log('DEBUG: With params:', params);
+        if (params) {
+            params.forEach((param, index) => {
+                if (param === undefined) {
+                    console.error(`DEBUG: UNDEFINED PARAMETER at index ${index} in SQL: ${sql}`);
+                    console.error('DEBUG: All parameters:', params);
+                    throw new Error(`Undefined parameter at index ${index} in SQL: ${sql}`);
+                }
+            });
+        }
+        return this.db.exec(sql, params);
+    }
+
     async initializeSources(): Promise<void> {
         this.ensureInitialized();
 
@@ -191,12 +206,13 @@ export class SQLiteDatabaseService {
         const stmt = this.db.prepare('SELECT id FROM sources WHERE name = ?');
         const result = stmt.get(['scan']);
         
-        if (!result) {
+        if (!result || result.length === 0) {
             const insertStmt = this.db.prepare(`
                 INSERT INTO sources (name, type, last_updated) 
                 VALUES (?, ?, ?)
             `);
             insertStmt.run(['scan', 'scan', new Date().toISOString()]);
+            insertStmt.free();
             this.markDirty();
         }
 
@@ -213,7 +229,7 @@ export class SQLiteDatabaseService {
         const hash = await this.calculateFileHash(contents);
         
         // Check if source exists
-        const selectResult = this.db.exec('SELECT * FROM sources WHERE name = ?', [filename]);
+        const selectResult = this.debugExec('SELECT * FROM sources WHERE name = ?', [filename]);
         
         if (selectResult.length > 0 && selectResult[0].values.length > 0) {
             const row = selectResult[0].values[0];
@@ -222,8 +238,8 @@ export class SQLiteDatabaseService {
                 name: row[1] as string,
                 type: row[2] as "scan" | "word_list",
                 last_updated: row[3] as string,
-                checksum: row[4] as string,
-                file_exists: Boolean(row[5])
+                checksum: row[4] as string || null,
+                file_exists: row[5] !== null ? Boolean(row[5]) : null
             };
             
             if (existing.checksum !== hash) {
@@ -231,7 +247,7 @@ export class SQLiteDatabaseService {
                 await this.deleteWordsBySource(existing.id!);
                 
                 // Update source
-                this.db.exec(`
+                this.debugExec(`
                     UPDATE sources 
                     SET checksum = ?, last_updated = ?, file_exists = 1 
                     WHERE id = ?
@@ -243,12 +259,12 @@ export class SQLiteDatabaseService {
             return existing.id!;
         } else {
             // Create new source
-            this.db.exec(`
+            this.debugExec(`
                 INSERT INTO sources (name, type, checksum, last_updated, file_exists) 
                 VALUES (?, ?, ?, ?, 1)
             `, [filename, 'word_list', hash, new Date().toISOString()]);
             
-            const result = this.db.exec('SELECT last_insert_rowid() as id');
+            const result = this.debugExec('SELECT last_insert_rowid() as id');
             const insertId = result[0].values[0][0] as number;
             
             this.markDirty();
@@ -303,11 +319,32 @@ export class SQLiteDatabaseService {
     async addOrIncrementWord(word: string, sourceId: number, incrementBy: number = 1): Promise<void> {
         this.ensureInitialized();
         
-        const selectStmt = this.db.prepare('SELECT id, frequency FROM words WHERE word = ?');
-        const existing = selectStmt.get([word]) as { id: number; frequency: number };
+        console.log('DEBUG: addOrIncrementWord called with:', { word, sourceId, incrementBy });
         
-        if (existing) {
+        // Check for undefined parameters
+        if (word === undefined) {
+            console.error('DEBUG: UNDEFINED WORD in addOrIncrementWord');
+            throw new Error('word parameter is undefined');
+        }
+        if (sourceId === undefined) {
+            console.error('DEBUG: UNDEFINED SOURCE_ID in addOrIncrementWord');
+            throw new Error('sourceId parameter is undefined');
+        }
+        if (incrementBy === undefined) {
+            console.error('DEBUG: UNDEFINED INCREMENT_BY in addOrIncrementWord');
+            throw new Error('incrementBy parameter is undefined');
+        }
+        
+        const selectStmt = this.db.prepare('SELECT id, frequency FROM words WHERE word = ?');
+        const row = selectStmt.get([word]);
+        
+        if (row && row.length > 0) {
+            const existing = {
+                id: row[0] as number,
+                frequency: row[1] as number
+            };
             const updateStmt = this.db.prepare('UPDATE words SET frequency = frequency + ? WHERE id = ?');
+            console.log('DEBUG: addOrIncrementWord - UPDATE params:', [incrementBy, existing.id]);
             updateStmt.run([incrementBy, existing.id]);
             updateStmt.free();
         } else {
@@ -315,7 +352,9 @@ export class SQLiteDatabaseService {
                 INSERT INTO words (word, first_letter, source_id, frequency, created_at) 
                 VALUES (?, ?, ?, ?, ?)
             `);
-            insertStmt.run([word, word.charAt(0), sourceId, incrementBy, new Date().toISOString()]);
+            const insertParams = [word, word.charAt(0), sourceId, incrementBy, new Date().toISOString()];
+            console.log('DEBUG: addOrIncrementWord - INSERT params:', insertParams);
+            insertStmt.run(insertParams);
             insertStmt.free();
         }
         
@@ -326,30 +365,39 @@ export class SQLiteDatabaseService {
     async getWordsByFirstLetter(letter: string): Promise<string[]> {
         this.ensureInitialized();
         
-        const stmt = this.db.prepare(`
+        const results = this.db.exec(`
             SELECT word FROM words 
             WHERE first_letter = ? 
             ORDER BY frequency DESC, word ASC
-        `);
-        const results = stmt.all([letter]) as { word: string }[];
-        stmt.free();
+        `, [letter]);
         
-        return results.map(row => row.word);
+        if (results.length === 0) return [];
+        
+        return results[0].values.map(row => row[0] as string);
     }
 
     async getAllWordsGroupedByFirstLetter(): Promise<Map<string, Word[]>> {
         this.ensureInitialized();
         
-        const stmt = this.db.prepare(`
+        const results = this.db.exec(`
             SELECT id, word, first_letter, source_id, frequency, created_at 
             FROM words 
             ORDER BY first_letter, frequency DESC, word ASC
         `);
-        const results = stmt.all() as Word[];
-        stmt.free();
+        
+        if (results.length === 0) return new Map();
         
         const grouped = new Map<string, Word[]>();
-        for (const word of results) {
+        for (const row of results[0].values) {
+            const word: Word = {
+                id: row[0] as number,
+                word: row[1] as string,
+                first_letter: row[2] as string,
+                source_id: row[3] as number,
+                frequency: row[4] as number,
+                created_at: row[5] as string
+            };
+            
             const firstLetter = word.first_letter!;
             if (!grouped.has(firstLetter)) {
                 grouped.set(firstLetter, []);
@@ -363,17 +411,26 @@ export class SQLiteDatabaseService {
     async getAllWordsBySource(sourceId: number): Promise<Map<string, Word[]>> {
         this.ensureInitialized();
         
-        const stmt = this.db.prepare(`
+        const results = this.db.exec(`
             SELECT id, word, first_letter, source_id, frequency, created_at 
             FROM words 
             WHERE source_id = ?
             ORDER BY first_letter, frequency DESC, word ASC
-        `);
-        const results = stmt.all([sourceId]) as Word[];
-        stmt.free();
+        `, [sourceId]);
+        
+        if (results.length === 0) return new Map();
         
         const grouped = new Map<string, Word[]>();
-        for (const word of results) {
+        for (const row of results[0].values) {
+            const word: Word = {
+                id: row[0] as number,
+                word: row[1] as string,
+                first_letter: row[2] as string,
+                source_id: row[3] as number,
+                frequency: row[4] as number,
+                created_at: row[5] as string
+            };
+            
             const firstLetter = word.first_letter!;
             if (!grouped.has(firstLetter)) {
                 grouped.set(firstLetter, []);
@@ -418,7 +475,7 @@ export class SQLiteDatabaseService {
             INSERT OR IGNORE INTO latex_commands (command, first_letter, description, created_at) 
             VALUES (?, ?, ?, ?)
         `);
-        stmt.run([command, command.charAt(0), description, new Date().toISOString()]);
+        stmt.run([command, command.charAt(0), description ?? null, new Date().toISOString()]);
         stmt.free();
         this.markDirty();
     }
@@ -427,15 +484,21 @@ export class SQLiteDatabaseService {
         this.ensureInitialized();
         
         const searchLetter = ignoreCase ? letter.toLowerCase() : letter;
-        const stmt = this.db.prepare(`
+        const results = this.db.exec(`
             SELECT id, command, first_letter, description, created_at 
             FROM latex_commands 
             WHERE first_letter = ?
-        `);
-        const results = stmt.all([searchLetter]) as LatexCommandRow[];
-        stmt.free();
+        `, [searchLetter]);
         
-        return results;
+        if (results.length === 0) return [];
+        
+        return results[0].values.map(row => ({
+            id: row[0] as number,
+            command: row[1] as string,
+            first_letter: row[2] as string,
+            description: row[3] as string,
+            created_at: row[4] as string
+        }));
     }
 
     async createWordList(name: string, description?: string): Promise<number> {
@@ -445,25 +508,33 @@ export class SQLiteDatabaseService {
             INSERT INTO word_lists (name, description, enabled, created_at) 
             VALUES (?, ?, 1, ?)
         `);
-        const result = stmt.run([name, description, new Date().toISOString()]);
+        stmt.run([name, description ?? null, new Date().toISOString()]);
         stmt.free();
         this.markDirty();
         
-        return result.lastInsertRowid as number;
+        // Get the last inserted row ID
+        const result = this.db.exec('SELECT last_insert_rowid() as id');
+        return result[0].values[0][0] as number;
     }
 
     async getWordLists(): Promise<WordListRow[]> {
         this.ensureInitialized();
         
-        const stmt = this.db.prepare(`
+        const results = this.db.exec(`
             SELECT id, name, description, enabled, created_at 
             FROM word_lists 
             ORDER BY name
         `);
-        const results = stmt.all() as WordListRow[];
-        stmt.free();
         
-        return results;
+        if (results.length === 0) return [];
+        
+        return results[0].values.map(row => ({
+            id: row[0] as number,
+            name: row[1] as string,
+            description: row[2] as string,
+            enabled: Boolean(row[3]),
+            created_at: row[4] as string
+        }));
     }
 
     async addFrontMatterEntry(key: string, value: string, filePath?: string): Promise<void> {
@@ -474,7 +545,7 @@ export class SQLiteDatabaseService {
             SELECT id, frequency FROM frontmatter 
             WHERE key = ? AND value = ? AND file_path = ?
         `);
-        const existing = selectStmt.get([key, value, filePath]) as { id: number; frequency: number };
+        const existing = selectStmt.get([key, value, filePath ?? null]) as { id: number; frequency: number };
         
         if (existing) {
             // Increment frequency
@@ -487,7 +558,7 @@ export class SQLiteDatabaseService {
                 INSERT INTO frontmatter (key, value, file_path, frequency, created_at) 
                 VALUES (?, ?, ?, 1, ?)
             `);
-            insertStmt.run([key, value, filePath, new Date().toISOString()]);
+            insertStmt.run([key, value, filePath ?? null, new Date().toISOString()]);
             insertStmt.free();
         }
         
@@ -498,63 +569,63 @@ export class SQLiteDatabaseService {
     async getFrontMatterSuggestions(key: string, prefix: string = ''): Promise<string[]> {
         this.ensureInitialized();
         
-        const stmt = this.db.prepare(`
+        const results = this.db.exec(`
             SELECT value FROM frontmatter 
             WHERE key = ? AND value LIKE ?
             ORDER BY frequency DESC 
             LIMIT 10
-        `);
-        const results = stmt.all([key, `${prefix}%`]) as { value: string }[];
-        stmt.free();
+        `, [key, `${prefix}%`]);
         
-        return results.map(row => row.value);
+        if (results.length === 0) return [];
+        
+        return results[0].values.map(row => row[0] as string);
     }
 
     async searchWords(query: string, ignoreCase: boolean = true): Promise<string[]> {
         this.ensureInitialized();
         
         const searchQuery = ignoreCase ? `%${query.toLowerCase()}%` : `%${query}%`;
-        const stmt = this.db.prepare(`
+        const results = this.db.exec(`
             SELECT DISTINCT word FROM words 
             WHERE ${ignoreCase ? 'LOWER(word)' : 'word'} LIKE ?
             ORDER BY word
-        `);
-        const results = stmt.all([searchQuery]) as { word: string }[];
-        stmt.free();
+        `, [searchQuery]);
         
-        return results.map(row => row.word);
+        if (results.length === 0) return [];
+        
+        return results[0].values.map(row => row[0] as string);
     }
 
     async getWordCount(source: string = 'scan'): Promise<number> {
         this.ensureInitialized();
         
         const stmt = this.db.prepare('SELECT COUNT(*) as count FROM words');
-        const result = stmt.get() as { count: number };
+        const row = stmt.get();
         stmt.free();
         
-        return result.count;
+        return row ? (row[0] as number) : 0;
     }
 
     async getScanSourceId(): Promise<number | null> {
         this.ensureInitialized();
         
         const stmt = this.db.prepare('SELECT id FROM sources WHERE name = ?');
-        const result = stmt.get(['scan']) as { id: number };
+        const result = stmt.get(['scan']);
         stmt.free();
         
-        return result ? result.id : null;
+        return (result && result.length > 0) ? result[0] as number : null;
     }
 
     async getWordListSourceIds(): Promise<number[]> {
         this.ensureInitialized();
         
-        const stmt = this.db.prepare(`
+        const results = this.db.exec(`
             SELECT id FROM sources 
             WHERE type = 'word_list' AND file_exists = 1
         `);
-        const results = stmt.all() as { id: number }[];
-        stmt.free();
         
-        return results.map(row => row.id);
+        if (results.length === 0) return [];
+        
+        return results[0].values.map(row => row[0] as number);
     }
 } 
