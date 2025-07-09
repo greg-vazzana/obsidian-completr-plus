@@ -77,7 +77,7 @@ class CalloutSuggestionProvider implements SuggestionProvider {
         const source = plugin.settings.calloutProviderSource;
 
         // Callout Manager
-        const calloutManagerApi = await getApi(plugin);
+        const calloutManagerApi = await getApi(plugin as any);
         if (calloutManagerApi != null) {
             calloutManagerApi.off('change', this.boundLoadSuggestionsUsingCalloutManager);
             if (source === CalloutProviderSource.CALLOUT_MANAGER) {
