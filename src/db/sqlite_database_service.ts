@@ -640,4 +640,24 @@ export class SQLiteDatabaseService {
         
         return results[0].values.map(row => row[0] as number);
     }
+
+    async deleteWordListSource(filename: string): Promise<void> {
+        this.ensureInitialized();
+        
+        // Find the source by name
+        const source = await this.findSourceByName(filename);
+        if (!source) {
+            return; // Source doesn't exist, nothing to delete
+        }
+        
+        // Delete all words associated with this source
+        await this.deleteWordsBySource(source.id!);
+        
+        // Delete the source itself
+        const deleteStmt = this.db.prepare('DELETE FROM sources WHERE id = ?');
+        deleteStmt.run([source.id]);
+        deleteStmt.free();
+        
+        this.markDirty();
+    }
 } 

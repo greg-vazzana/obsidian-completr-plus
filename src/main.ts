@@ -29,37 +29,37 @@ export default class CompletrPlugin extends Plugin {
     settings: CompletrSettings;
 
     private snippetManager: SnippetManager;
-    private _suggestionPopup: SuggestionPopup;
-    private _periodInserter: PeriodInserter;
-    private _nlpCapitalizer: NLPCapitalizer;
-    private _liveWordTracker: LiveWordTracker;
-    private _cursorActivityListener: CursorActivityListener;
-    private _database: SQLiteDatabaseService | null = null;
+    private suggestionPopup: SuggestionPopup;
+    private periodInserter: PeriodInserter;
+    private nlpCapitalizer: NLPCapitalizer;
+    private liveWordTracker: LiveWordTracker;
+    private cursorActivityListener: CursorActivityListener;
+    private database: SQLiteDatabaseService | null = null;
 
     async onload() {
         this.snippetManager = new SnippetManager();
-        this._periodInserter = new PeriodInserter();
-        this._nlpCapitalizer = new NLPCapitalizer(); // Will be configured after loadSettings
+        this.periodInserter = new PeriodInserter();
+        this.nlpCapitalizer = new NLPCapitalizer(); // Will be configured after loadSettings
         
         // Initialize LiveWordTracker early so it's available in loadSettings
-        this._liveWordTracker = new LiveWordTracker(DEFAULT_SETTINGS); // Use defaults initially
+        this.liveWordTracker = new LiveWordTracker(DEFAULT_SETTINGS); // Use defaults initially
         
         await this.loadSettings();
 
         // Register providers in the correct order (original order: [FrontMatter, Callout, Latex, Scanner, WordList])
         this.registerProviders();
 
-        this._suggestionPopup = new SuggestionPopup(this.app, this.settings, this.snippetManager);
+        this.suggestionPopup = new SuggestionPopup(this.app, this.settings, this.snippetManager);
 
-        this.registerEditorSuggest(this._suggestionPopup);
+        this.registerEditorSuggest(this.suggestionPopup);
 
         this.registerEvent(this.app.workspace.on('file-open', this.onFileOpened, this));
         this.registerEvent(this.app.metadataCache.on('changed', FrontMatter.onCacheChange, FrontMatter));
         this.app.workspace.onLayoutReady(() => FrontMatter.loadYAMLKeyCompletions(this.app.metadataCache, this.app.vault.getMarkdownFiles()));
 
         this.registerEditorExtension(markerStateField);
-        this._cursorActivityListener = new CursorActivityListener(this.snippetManager, this._suggestionPopup, this._periodInserter, this._nlpCapitalizer, this._liveWordTracker, this.settings);
-        this.registerEditorExtension(EditorView.updateListener.of(this._cursorActivityListener.listener));
+        this.cursorActivityListener = new CursorActivityListener(this.snippetManager, this.suggestionPopup, this.periodInserter, this.nlpCapitalizer, this.liveWordTracker, this.settings);
+        this.registerEditorExtension(EditorView.updateListener.of(this.cursorActivityListener.listener));
 
         this.addSettingTab(new CompletrSettingsTab(this.app, this));
 
@@ -161,7 +161,7 @@ export default class CompletrPlugin extends Plugin {
      * Handles bypass commands by dispatching modified events
      */
     private handleBypassCommand(e: KeyboardEvent, t: KeymapContext, hotkey: any, hotkeyManager: any, id: string) {
-        this._suggestionPopup.close();
+        this.suggestionPopup.close();
 
         const validMods = t.modifiers.replace(new RegExp(`${hotkey.modifiers},*`), "").split(",");
         //Sends the event again, only keeping the modifiers which didn't activate this command
@@ -190,10 +190,10 @@ export default class CompletrPlugin extends Plugin {
             ],
             editorCallback: (editor) => {
                 // This is the same function that is called by obsidian when you type a character
-                (this._suggestionPopup as any).trigger(editor, /* Passing null here is a signal that this was triggered manually by the user */ null, true);
+                (this.suggestionPopup as any).trigger(editor, /* Passing null here is a signal that this was triggered manually by the user */ null, true);
             },
             // @ts-ignore
-            isVisible: () => !this._suggestionPopup.isVisible()
+            isVisible: () => !this.suggestionPopup.isVisible()
         });
         
         this.addCommand({
@@ -214,7 +214,7 @@ export default class CompletrPlugin extends Plugin {
                 this.suggestionPopup.selectNextItem(SelectionDirection.NEXT);
             },
             // @ts-ignore
-            isVisible: () => this._suggestionPopup.isVisible(),
+            isVisible: () => this.suggestionPopup.isVisible(),
         });
         
         this.addCommand({
@@ -235,7 +235,7 @@ export default class CompletrPlugin extends Plugin {
                 this.suggestionPopup.selectNextItem(SelectionDirection.PREVIOUS);
             },
             // @ts-ignore
-            isVisible: () => this._suggestionPopup.isVisible(),
+            isVisible: () => this.suggestionPopup.isVisible(),
         });
         
         this.addCommand({
@@ -255,12 +255,12 @@ export default class CompletrPlugin extends Plugin {
                 const cursor = editor.getCursor();
                 const line = editor.getLine(cursor.line);
                 if (cursor.ch < line.length && !WordPatterns.isWordCharacter(line[cursor.ch])) {
-                    this._periodInserter.allowInsertPeriod();
+                    this.periodInserter.allowInsertPeriod();
                 }
             },
             // @ts-ignore
-            isBypassCommand: () => !this._suggestionPopup.isFocused(),
-            isVisible: () => this._suggestionPopup.isVisible(),
+            isBypassCommand: () => !this.suggestionPopup.isFocused(),
+            isVisible: () => this.suggestionPopup.isVisible(),
         });
 
         this.addCommand({
@@ -274,7 +274,7 @@ export default class CompletrPlugin extends Plugin {
             ],
             editorCallback: (_) => this.suggestionPopup.close(),
             // @ts-ignore
-            isVisible: () => this._suggestionPopup.isVisible(),
+            isVisible: () => this.suggestionPopup.isVisible(),
         });
     }
 
@@ -291,10 +291,10 @@ export default class CompletrPlugin extends Plugin {
                     modifiers: []
                 }
             ],
-            editorCallback: (editor) => this._periodInserter.attemptInsert(editor),
+            editorCallback: (editor) => this.periodInserter.attemptInsert(editor),
             // @ts-ignore
             isBypassCommand: () => false,
-            isVisible: () => this.settings.insertPeriodAfterSpaces && this._periodInserter.canInsertPeriod()
+            isVisible: () => this.settings.insertPeriodAfterSpaces && this.periodInserter.canInsertPeriod()
         });
     }
 
@@ -355,7 +355,7 @@ export default class CompletrPlugin extends Plugin {
             },
             // @ts-ignore
             isBypassCommand: () => true,
-            isVisible: () => this._suggestionPopup.isVisible(),
+            isVisible: () => this.suggestionPopup.isVisible(),
         });
         
         this.addCommand({
@@ -371,7 +371,7 @@ export default class CompletrPlugin extends Plugin {
             },
             // @ts-ignore
             isBypassCommand: () => true,
-            isVisible: () => this._suggestionPopup.isVisible(),
+            isVisible: () => this.suggestionPopup.isVisible(),
         });
     }
 
@@ -389,13 +389,13 @@ export default class CompletrPlugin extends Plugin {
                 }
             ],
             editorCallback: (editor) => {
-                SuggestionIgnorelist.add(this._suggestionPopup.getSelectedItem());
+                SuggestionIgnorelist.add(this.suggestionPopup.getSelectedItem());
                 SuggestionIgnorelist.saveData(this.app.vault);
-                (this._suggestionPopup as any).trigger(editor, this.app.workspace.getActiveFile(), true);
+                (this.suggestionPopup as any).trigger(editor, this.app.workspace.getActiveFile(), true);
             },
             // @ts-ignore
-            isBypassCommand: () => !this._suggestionPopup.isFocused(),
-            isVisible: () => this._suggestionPopup.isVisible(),
+            isBypassCommand: () => !this.suggestionPopup.isFocused(),
+            isVisible: () => this.suggestionPopup.isVisible(),
         });
     }
 
@@ -423,7 +423,7 @@ export default class CompletrPlugin extends Plugin {
             },
             // @ts-ignore
             isBypassCommand: () => true,
-            isVisible: () => this._suggestionPopup.isVisible(),
+            isVisible: () => this.suggestionPopup.isVisible(),
         });
         
         this.addCommand({
@@ -439,7 +439,7 @@ export default class CompletrPlugin extends Plugin {
             },
             // @ts-ignore
             isBypassCommand: () => true,
-            isVisible: () => this._suggestionPopup.isVisible(),
+            isVisible: () => this.suggestionPopup.isVisible(),
         });
         
         this.addCommand({
@@ -455,7 +455,7 @@ export default class CompletrPlugin extends Plugin {
             },
             // @ts-ignore
             isBypassCommand: () => true,
-            isVisible: () => this._suggestionPopup.isVisible(),
+            isVisible: () => this.suggestionPopup.isVisible(),
         });
         
         this.addCommand({
@@ -471,7 +471,7 @@ export default class CompletrPlugin extends Plugin {
             },
             // @ts-ignore
             isBypassCommand: () => true,
-            isVisible: () => this._suggestionPopup.isVisible(),
+            isVisible: () => this.suggestionPopup.isVisible(),
         });
     }
 
@@ -556,14 +556,14 @@ export default class CompletrPlugin extends Plugin {
     async onunload() {
         // Clean up any resources
         this.snippetManager.onunload();
-        if (this._liveWordTracker) {
-            await this._liveWordTracker.onUnload();
+        if (this.liveWordTracker) {
+            await this.liveWordTracker.onUnload();
         }
-        if (this._cursorActivityListener) {
-            this._cursorActivityListener.cleanup();
+        if (this.cursorActivityListener) {
+            this.cursorActivityListener.cleanup();
         }
-        if (this._database) {
-            await this._database.shutdown();
+        if (this.database) {
+            await this.database.shutdown();
         }
         // Clear provider registry on unload
         providerRegistry.clear();
@@ -604,7 +604,7 @@ export default class CompletrPlugin extends Plugin {
             await Callout.loadSuggestions(this.app.vault, this);
             
             // Configure NLP capitalizer with current settings
-            this._nlpCapitalizer.updateConfig({
+            this.nlpCapitalizer.updateConfig({
                 capitalizeLines: this.settings.autoCapitalizeLines,
                 capitalizeSentences: this.settings.autoCapitalizeSentences,
                 preserveMixedCase: this.settings.preserveMixedCaseWords,
@@ -619,13 +619,13 @@ export default class CompletrPlugin extends Plugin {
     private async initializeDatabaseAsync() {
         try {
             // Set up live word tracker with database and updated settings
-            this._database = new SQLiteDatabaseService(this.app.vault);
-            await this._database.initialize();
-            this._liveWordTracker.setDatabase(this._database);
-            this._liveWordTracker.updateSettings(this.settings);
+            this.database = new SQLiteDatabaseService(this.app.vault);
+            await this.database.initialize();
+            this.liveWordTracker.setDatabase(this.database);
+            this.liveWordTracker.updateSettings(this.settings);
             
             // Connect database to Scanner provider if available
-            await Scanner.connectDatabase(this._database);
+            await Scanner.connectDatabase(this.database);
             
             console.log('Database initialized successfully');
         } catch (error) {
@@ -647,16 +647,14 @@ export default class CompletrPlugin extends Plugin {
         await Scanner.scanFiles(this.settings, files);
     }
 
-    get suggestionPopup() {
-        return this._suggestionPopup;
-    }
+
 
     async saveSettings() {
         await this.saveData(this.settings);
         
         // Update all components with new settings
-        this._liveWordTracker.updateSettings(this.settings);
-        this._nlpCapitalizer.updateConfig({
+        this.liveWordTracker.updateSettings(this.settings);
+        this.nlpCapitalizer.updateConfig({
             capitalizeLines: this.settings.autoCapitalizeLines,
             capitalizeSentences: this.settings.autoCapitalizeSentences,
             preserveMixedCase: this.settings.preserveMixedCaseWords,

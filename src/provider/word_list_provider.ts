@@ -175,6 +175,20 @@ class WordListSuggestionProvider extends DictionaryProvider {
         return true;
     }
 
+    async deleteWordList(vault: Vault, name: string): Promise<void> {
+        const path = intoCompletrPath(vault, FOLDERS.WORD_LISTS, name);
+        
+        // Delete the file if it exists
+        if (await vault.adapter.exists(path)) {
+            await vault.adapter.remove(path);
+        }
+        
+        // Clean up database entries for this word list
+        if (this.db) {
+            await this.db.deleteWordListSource(name);
+        }
+    }
+
     /**
      * Returns all files inside of {@link FOLDERS.WORD_LISTS}. The resulting strings are full paths, relative to the vault
      * root. <br>
