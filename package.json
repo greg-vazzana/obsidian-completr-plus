@@ -19,13 +19,13 @@
 		"builtin-modules": "^3.3.0",
 		"esbuild": "^0.15.11",
 		"jschardet": "^3.0.0",
-		"obsidian": "^0.16.3",
+		"obsidian": "^1.8.7",
 		"tslib": "2.4.0",
 		"typescript": "4.8.4"
 	},
 	"dependencies": {
 		"compromise": "^14.14.4",
-		"obsidian-callout-manager": "^1.0.2-alpha1",
+		"obsidian-callout-manager": "^1.0.1",
 		"sql.js": "^1.8.0"
 	}
 }

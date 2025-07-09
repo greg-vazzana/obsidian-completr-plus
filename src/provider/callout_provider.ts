@@ -119,7 +119,7 @@ class CalloutSuggestionProvider implements SuggestionProvider {
         this.loadedSuggestions = Array.from(api.getCallouts())
             .sort(({id: a}, {id: b}) => a.localeCompare(b))
             .map(callout => newSuggestion(
-                api.getTitle(callout),
+                callout.id,
                 callout.id,
                 callout.icon,
                 `rgb(${callout.color})`,
