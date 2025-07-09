@@ -660,11 +660,8 @@ export default class CompletrPlugin extends Plugin {
             Scanner.setVault(this.app.vault);
             await Scanner.initialize();
             
-            // Set up live word tracker with database and updated settings
-            this._database = new SQLiteDatabaseService(this.app.vault);
-            await this._database.initialize();
-            this._liveWordTracker.setDatabase(this._database);
-            this._liveWordTracker.updateSettings(this.settings);
+            // Initialize database in background to avoid blocking the popup
+            this.initializeDatabaseAsync();
             
             await Latex.loadCommands(this.app.vault);
             await Callout.loadSuggestions(this.app.vault, this);
@@ -679,6 +676,24 @@ export default class CompletrPlugin extends Plugin {
         } catch (error) {
             console.error('Error loading Completr providers:', error);
             throw error;
+        }
+    }
+
+    private async initializeDatabaseAsync() {
+        try {
+            // Set up live word tracker with database and updated settings
+            this._database = new SQLiteDatabaseService(this.app.vault);
+            await this._database.initialize();
+            this._liveWordTracker.setDatabase(this._database);
+            this._liveWordTracker.updateSettings(this.settings);
+            
+            // Connect database to Scanner provider if available
+            await Scanner.connectDatabase(this._database);
+            
+            console.log('Database initialized successfully');
+        } catch (error) {
+            console.error('Failed to initialize database, live word tracking will be disabled:', error);
+            // Don't throw - allow the plugin to continue without database features
         }
     }
 

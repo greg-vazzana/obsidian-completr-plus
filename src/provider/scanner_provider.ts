@@ -13,16 +13,37 @@ class ScannerSuggestionProvider extends DictionaryProvider {
     private frequencyUpdates: Map<string, number> = new Map(); // Track frequency increments during scanning
 
     setVault(vault: Vault) {
-        this.db = new SQLiteDatabaseService(vault);
+        if (!this.db) {
+            this.db = new SQLiteDatabaseService(vault);
+        }
+    }
+
+    // Method to connect database when it becomes available
+    async connectDatabase(database: SQLiteDatabaseService) {
+        this.db = database;
+        try {
+            await this.db.initializeSources();
+            await this.loadWordsFromDb();
+        } catch (error) {
+            console.error('Scanner: Failed to connect database:', error);
+            this.db = null;
+        }
     }
 
     async initialize(): Promise<void> {
         if (!this.db) {
-            throw new Error('Scanner not properly initialized: db not set');
+            console.warn('Scanner: Database not set, using in-memory only mode');
+            return;
         }
-        await this.db.initialize();
-        await this.db.initializeSources();
-        await this.loadWordsFromDb();
+        
+        try {
+            await this.db.initialize();
+            await this.db.initializeSources();
+            await this.loadWordsFromDb();
+        } catch (error) {
+            console.error('Scanner: Database initialization failed, using in-memory only mode:', error);
+            this.db = null; // Reset to null to indicate no database available
+        }
     }
 
     isEnabled(settings: CompletrSettings): boolean {
@@ -30,12 +51,10 @@ class ScannerSuggestionProvider extends DictionaryProvider {
     }
 
     async scanFiles(settings: CompletrSettings, files: TFile[]) {
-        if (!this.db) {
-            throw new Error('Scanner not properly initialized: db not set');
+        if (this.db) {
+            // Clear scan words before scanning (per-source clearing)
+            await this.db.deleteScanWords();
         }
-        
-        // Clear scan words before scanning (per-source clearing)
-        await this.db.deleteScanWords();
         
         // Clear frequency tracking for this scan session
         this.frequencyUpdates.clear();
@@ -48,14 +67,12 @@ class ScannerSuggestionProvider extends DictionaryProvider {
         }
         
         // Write batched frequency updates to database after all files are scanned
-        await this.flushFrequencyUpdates();
+        if (this.db) {
+            await this.flushFrequencyUpdates();
+        }
     }
 
     async scanFile(settings: CompletrSettings, file: TFile) {
-        if (!this.db) {
-            throw new Error('Scanner not properly initialized: db not set');
-        }
-
         const contents = await file.vault.cachedRead(file);
 
         // Match words that:
@@ -74,10 +91,12 @@ class ScannerSuggestionProvider extends DictionaryProvider {
     }
 
     private async loadWordsFromDb() {
-        if (!this.db) {
-            throw new Error('Scanner not properly initialized: db not set');
-        }
         this.wordMap.clear();
+        
+        if (!this.db) {
+            console.warn('Scanner: Database not available, cannot load words');
+            return;
+        }
         
         // Get scan source ID if not already cached
         if (this.scanSourceId === null) {
@@ -110,16 +129,16 @@ class ScannerSuggestionProvider extends DictionaryProvider {
     }
 
     private async addOrIncrementWord(word: string) {
-        if (!word || !this.db || SuggestionIgnorelist.hasText(word)) {
+        if (!word || SuggestionIgnorelist.hasText(word)) {
             return;
         }
 
-        // Get scan source ID if not already cached
-        if (this.scanSourceId === null) {
+        // If database is available, get scan source ID
+        if (this.db && this.scanSourceId === null) {
             this.scanSourceId = await this.db.getScanSourceId();
             
             if (this.scanSourceId === null) {
-                throw new Error('Scan source not found in database');
+                console.warn('Scanner: Scan source not found in database');
             }
         }
 
@@ -141,9 +160,11 @@ class ScannerSuggestionProvider extends DictionaryProvider {
             wordsForLetter.set(word, { word, frequency: 1 });
         }
         
-        // Track frequency increment for batch database update
-        const currentIncrement = this.frequencyUpdates.get(word) || 0;
-        this.frequencyUpdates.set(word, currentIncrement + 1);
+        // Track frequency increment for batch database update (if database available)
+        if (this.db) {
+            const currentIncrement = this.frequencyUpdates.get(word) || 0;
+            this.frequencyUpdates.set(word, currentIncrement + 1);
+        }
     }
 
     private async flushFrequencyUpdates() {
@@ -154,7 +175,9 @@ class ScannerSuggestionProvider extends DictionaryProvider {
         // Write all frequency updates to database
         for (const [word, incrementCount] of this.frequencyUpdates.entries()) {
             try {
-                await this.db.addOrIncrementWord(word, this.scanSourceId!, incrementCount);
+                if (this.scanSourceId !== null) {
+                    await this.db.addOrIncrementWord(word, this.scanSourceId, incrementCount);
+                }
             } catch (error) {
                 console.error(`Failed to update frequency for word "${word}":`, error);
                 // Continue with other words even if one fails
@@ -173,25 +196,27 @@ class ScannerSuggestionProvider extends DictionaryProvider {
         // Only set vault and initialize if not already initialized
         if (!this.db) {
             this.setVault(vault);
-            await this.initialize();
+            try {
+                await this.initialize();
+            } catch (error) {
+                console.error('Scanner loadData: Failed to initialize:', error);
+            }
         }
     }
 
     async deleteAllWords() {
-        if (!this.db) {
-            throw new Error('Scanner not properly initialized: db not set');
-        }
         this.wordMap.clear();
-        await this.db.deleteScanWords(); // Only delete scan words instead of all words
+        if (this.db) {
+            await this.db.deleteScanWords(); // Only delete scan words instead of all words
+        }
     }
 
     async deleteScanWords() {
-        if (!this.db) {
-            throw new Error('Scanner not properly initialized: db not set');
-        }
         // Clear in-memory scan words and database scan words
         this.wordMap.clear();
-        await this.db.deleteScanWords();
+        if (this.db) {
+            await this.db.deleteScanWords();
+        }
     }
 
     // Keep the old addWord method for backwards compatibility, but mark as deprecated
