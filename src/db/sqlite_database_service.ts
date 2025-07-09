@@ -184,20 +184,7 @@ export class SQLiteDatabaseService {
         }
     }
 
-    private debugExec(sql: string, params?: any[]) {
-        console.log('DEBUG: Executing SQL:', sql);
-        console.log('DEBUG: With params:', params);
-        if (params) {
-            params.forEach((param, index) => {
-                if (param === undefined) {
-                    console.error(`DEBUG: UNDEFINED PARAMETER at index ${index} in SQL: ${sql}`);
-                    console.error('DEBUG: All parameters:', params);
-                    throw new Error(`Undefined parameter at index ${index} in SQL: ${sql}`);
-                }
-            });
-        }
-        return this.db.exec(sql, params);
-    }
+
 
     async initializeSources(): Promise<void> {
         this.ensureInitialized();
@@ -229,7 +216,7 @@ export class SQLiteDatabaseService {
         const hash = await this.calculateFileHash(contents);
         
         // Check if source exists
-        const selectResult = this.debugExec('SELECT * FROM sources WHERE name = ?', [filename]);
+        const selectResult = this.db.exec('SELECT * FROM sources WHERE name = ?', [filename]);
         
         if (selectResult.length > 0 && selectResult[0].values.length > 0) {
             const row = selectResult[0].values[0];
@@ -247,7 +234,7 @@ export class SQLiteDatabaseService {
                 await this.deleteWordsBySource(existing.id!);
                 
                 // Update source
-                this.debugExec(`
+                this.db.exec(`
                     UPDATE sources 
                     SET checksum = ?, last_updated = ?, file_exists = 1 
                     WHERE id = ?
@@ -259,12 +246,12 @@ export class SQLiteDatabaseService {
             return existing.id!;
         } else {
             // Create new source
-            this.debugExec(`
+            this.db.exec(`
                 INSERT INTO sources (name, type, checksum, last_updated, file_exists) 
                 VALUES (?, ?, ?, ?, 1)
             `, [filename, 'word_list', hash, new Date().toISOString()]);
             
-            const result = this.debugExec('SELECT last_insert_rowid() as id');
+            const result = this.db.exec('SELECT last_insert_rowid() as id');
             const insertId = result[0].values[0][0] as number;
             
             this.markDirty();
@@ -319,22 +306,6 @@ export class SQLiteDatabaseService {
     async addOrIncrementWord(word: string, sourceId: number, incrementBy: number = 1): Promise<void> {
         this.ensureInitialized();
         
-        console.log('DEBUG: addOrIncrementWord called with:', { word, sourceId, incrementBy });
-        
-        // Check for undefined parameters
-        if (word === undefined) {
-            console.error('DEBUG: UNDEFINED WORD in addOrIncrementWord');
-            throw new Error('word parameter is undefined');
-        }
-        if (sourceId === undefined) {
-            console.error('DEBUG: UNDEFINED SOURCE_ID in addOrIncrementWord');
-            throw new Error('sourceId parameter is undefined');
-        }
-        if (incrementBy === undefined) {
-            console.error('DEBUG: UNDEFINED INCREMENT_BY in addOrIncrementWord');
-            throw new Error('incrementBy parameter is undefined');
-        }
-        
         const selectStmt = this.db.prepare('SELECT id, frequency FROM words WHERE word = ?');
         const row = selectStmt.get([word]);
         
@@ -344,7 +315,6 @@ export class SQLiteDatabaseService {
                 frequency: row[1] as number
             };
             const updateStmt = this.db.prepare('UPDATE words SET frequency = frequency + ? WHERE id = ?');
-            console.log('DEBUG: addOrIncrementWord - UPDATE params:', [incrementBy, existing.id]);
             updateStmt.run([incrementBy, existing.id]);
             updateStmt.free();
         } else {
@@ -352,9 +322,7 @@ export class SQLiteDatabaseService {
                 INSERT INTO words (word, first_letter, source_id, frequency, created_at) 
                 VALUES (?, ?, ?, ?, ?)
             `);
-            const insertParams = [word, word.charAt(0), sourceId, incrementBy, new Date().toISOString()];
-            console.log('DEBUG: addOrIncrementWord - INSERT params:', insertParams);
-            insertStmt.run(insertParams);
+            insertStmt.run([word, word.charAt(0), sourceId, incrementBy, new Date().toISOString()]);
             insertStmt.free();
         }
         

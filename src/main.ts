@@ -160,25 +160,9 @@ class LiveWordTracker {
             return;
         }
 
-        console.log('DEBUG: flushBatchUpdates - scanSourceId:', scanSourceId);
-        console.log('DEBUG: flushBatchUpdates - batchUpdates size:', this.batchUpdates.size);
-
         try {
             // Process all batched updates
             for (const [word, incrementBy] of this.batchUpdates) {
-                console.log('DEBUG: flushBatchUpdates - processing word:', word, 'incrementBy:', incrementBy, 'scanSourceId:', scanSourceId);
-                
-                // Check for undefined parameters
-                if (word === undefined) {
-                    console.error('DEBUG: UNDEFINED WORD in flushBatchUpdates');
-                }
-                if (scanSourceId === undefined) {
-                    console.error('DEBUG: UNDEFINED SCAN_SOURCE_ID in flushBatchUpdates');
-                }
-                if (incrementBy === undefined) {
-                    console.error('DEBUG: UNDEFINED INCREMENT_BY in flushBatchUpdates');
-                }
-                
                 await this.db.addOrIncrementWord(word, scanSourceId, incrementBy);
             }
 
