@@ -75,12 +75,57 @@ export default class CompletrPlugin extends Plugin {
     }
 
     private setupCommands() {
+        this.setupCustomHotkeyHandler();
+        this.registerSuggestionCommands();
+        this.registerPeriodInsertionCommands();
+        this.registerSnippetCommands();
+        this.registerBypassCommands();
+        this.registerIgnoreListCommands();
+        this.registerInternalCommands();
+    }
+
+    /**
+     * Sets up custom hotkey handler to support bypass commands
+     */
+    private setupCustomHotkeyHandler() {
         // This replaces the default handler for commands. This is needed because the default handler always consumes
         // the event if the command exists.
         const app = this.app as any;
         app.scope.keys = [];
 
-        const isHotkeyMatch = (hotkey: any, context: KeymapContext, isBypassCommand: boolean): boolean => {
+        const isHotkeyMatch = this.createHotkeyMatcher();
+        
+        this.app.scope.register(null, null, (e: KeyboardEvent, t: KeymapContext) => {
+            const hotkeyManager = app.hotkeyManager;
+            hotkeyManager.bake();
+            for (let bakedHotkeys = hotkeyManager.bakedHotkeys, bakedIds = hotkeyManager.bakedIds, r = 0; r < bakedHotkeys.length; r++) {
+                const hotkey = bakedHotkeys[r];
+                const id = bakedIds[r];
+                const command = app.commands.findCommand(id);
+                const isBypassCommand = command?.isBypassCommand?.();
+                
+                if (isHotkeyMatch(hotkey, t, isBypassCommand)) {
+                    if (this.shouldSkipCommand(command, e)) {
+                        continue;
+                    }
+                    
+                    if (isBypassCommand) {
+                        this.handleBypassCommand(e, t, hotkey, hotkeyManager, id);
+                        return false;
+                    }
+
+                    if (app.commands.executeCommandById(id))
+                        return false
+                }
+            }
+        });
+    }
+
+    /**
+     * Creates the hotkey matching function
+     */
+    private createHotkeyMatcher(): (hotkey: any, context: KeymapContext, isBypassCommand: boolean) => boolean {
+        return (hotkey: any, context: KeymapContext, isBypassCommand: boolean): boolean => {
             //Copied from original isMatch function, modified to not require exactly the same modifiers for
             // completr-bypass commands. This allows triggering for example Ctrl+Enter even when
             // pressing Ctrl+Shift+Enter. The additional modifier is then passed to the editor.
@@ -96,43 +141,44 @@ export default class CompletrPlugin extends Plugin {
                 return false;
             return (!key || (key === context.vkey || !(!context.key || key.toLowerCase() !== context.key.toLowerCase())))
         }
-        this.app.scope.register(null, null, (e: KeyboardEvent, t: KeymapContext) => {
-            const hotkeyManager = app.hotkeyManager;
-            hotkeyManager.bake();
-            for (let bakedHotkeys = hotkeyManager.bakedHotkeys, bakedIds = hotkeyManager.bakedIds, r = 0; r < bakedHotkeys.length; r++) {
-                const hotkey = bakedHotkeys[r];
-                const id = bakedIds[r];
-                const command = app.commands.findCommand(id);
-                const isBypassCommand = command?.isBypassCommand?.();
-                if (isHotkeyMatch(hotkey, t, isBypassCommand)) {
-                    // Condition taken from original function
-                    if (!command || (e.repeat && !command.repeatable)) {
-                        continue;
-                    } else if (command.isVisible && !command.isVisible()) {
-                        //HACK: Hide our commands when to popup is not visible to allow the keybinds to execute their default action.
-                        continue;
-                    } else if (isBypassCommand) {
-                        this._suggestionPopup.close();
+    }
 
-                        const validMods = t.modifiers.replace(new RegExp(`${hotkey.modifiers},*`), "").split(",");
-                        //Sends the event again, only keeping the modifiers which didn't activate this command
-                        let event = new KeyboardEvent("keydown", {
-                            key: hotkeyManager.defaultKeys[id][0].key,
-                            ctrlKey: validMods.contains("Ctrl"),
-                            shiftKey: validMods.contains("Shift"),
-                            altKey: validMods.contains("Alt"),
-                            metaKey: validMods.contains("Meta")
-                        });
-                        e.target.dispatchEvent(event);
-                        return false;
-                    }
+    /**
+     * Determines if a command should be skipped
+     */
+    private shouldSkipCommand(command: any, e: KeyboardEvent): boolean {
+        // Condition taken from original function
+        if (!command || (e.repeat && !command.repeatable)) {
+            return true;
+        } else if (command.isVisible && !command.isVisible()) {
+            //HACK: Hide our commands when to popup is not visible to allow the keybinds to execute their default action.
+            return true;
+        }
+        return false;
+    }
 
-                    if (app.commands.executeCommandById(id))
-                        return false
-                }
-            }
+    /**
+     * Handles bypass commands by dispatching modified events
+     */
+    private handleBypassCommand(e: KeyboardEvent, t: KeymapContext, hotkey: any, hotkeyManager: any, id: string) {
+        this._suggestionPopup.close();
+
+        const validMods = t.modifiers.replace(new RegExp(`${hotkey.modifiers},*`), "").split(",");
+        //Sends the event again, only keeping the modifiers which didn't activate this command
+        let event = new KeyboardEvent("keydown", {
+            key: hotkeyManager.defaultKeys[id][0].key,
+            ctrlKey: validMods.contains("Ctrl"),
+            shiftKey: validMods.contains("Shift"),
+            altKey: validMods.contains("Alt"),
+            metaKey: validMods.contains("Meta")
         });
+        e.target.dispatchEvent(event);
+    }
 
+    /**
+     * Registers suggestion-related commands
+     */
+    private registerSuggestionCommands() {
         this.addCommand({
             id: 'completr-open-suggestion-popup',
             name: 'Open suggestion popup',
@@ -149,6 +195,7 @@ export default class CompletrPlugin extends Plugin {
             // @ts-ignore
             isVisible: () => !this._suggestionPopup.isVisible()
         });
+        
         this.addCommand({
             id: 'completr-select-next-suggestion',
             name: 'Select next suggestion',
@@ -169,6 +216,7 @@ export default class CompletrPlugin extends Plugin {
             // @ts-ignore
             isVisible: () => this._suggestionPopup.isVisible(),
         });
+        
         this.addCommand({
             id: 'completr-select-previous-suggestion',
             name: 'Select previous suggestion',
@@ -189,6 +237,7 @@ export default class CompletrPlugin extends Plugin {
             // @ts-ignore
             isVisible: () => this._suggestionPopup.isVisible(),
         });
+        
         this.addCommand({
             id: 'completr-insert-selected-suggestion',
             name: 'Insert selected suggestion',
@@ -213,6 +262,26 @@ export default class CompletrPlugin extends Plugin {
             isBypassCommand: () => !this._suggestionPopup.isFocused(),
             isVisible: () => this._suggestionPopup.isVisible(),
         });
+
+        this.addCommand({
+            id: 'completr-close-suggestion-popup',
+            name: 'Close suggestion popup',
+            hotkeys: [
+                {
+                    key: "Escape",
+                    modifiers: []
+                }
+            ],
+            editorCallback: (_) => this.suggestionPopup.close(),
+            // @ts-ignore
+            isVisible: () => this._suggestionPopup.isVisible(),
+        });
+    }
+
+    /**
+     * Registers period insertion commands
+     */
+    private registerPeriodInsertionCommands() {
         this.addCommand({
             id: 'completr-space-period-insert',
             name: 'Add period after word',
@@ -227,67 +296,12 @@ export default class CompletrPlugin extends Plugin {
             isBypassCommand: () => false,
             isVisible: () => this.settings.insertPeriodAfterSpaces && this._periodInserter.canInsertPeriod()
         });
-        this.addCommand({
-            id: 'completr-bypass-enter-key',
-            name: 'Bypass the popup and press Enter',
-            hotkeys: [
-                {
-                    key: "Enter",
-                    modifiers: ["Ctrl"]
-                }
-            ],
-            editorCallback: (_) => {
-            },
-            // @ts-ignore
-            isBypassCommand: () => true,
-            isVisible: () => this._suggestionPopup.isVisible(),
-        });
-        this.addCommand({
-            id: 'completr-bypass-tab-key',
-            name: 'Bypass the popup and press Tab',
-            hotkeys: [
-                {
-                    key: "Tab",
-                    modifiers: ["Ctrl"]
-                }
-            ],
-            editorCallback: (_) => {
-            },
-            // @ts-ignore
-            isBypassCommand: () => true,
-            isVisible: () => this._suggestionPopup.isVisible(),
-        });
-        this.addCommand({
-            id: 'completr-ignore-current-word',
-            name: 'Add the currently selected word to the ignore list',
-            hotkeys: [
-                {
-                    key: "D",
-                    modifiers: ["Shift"]
-                }
-            ],
-            editorCallback: (editor) => {
-                SuggestionIgnorelist.add(this._suggestionPopup.getSelectedItem());
-                SuggestionIgnorelist.saveData(this.app.vault);
-                (this._suggestionPopup as any).trigger(editor, this.app.workspace.getActiveFile(), true);
-            },
-            // @ts-ignore
-            isBypassCommand: () => !this._suggestionPopup.isFocused(),
-            isVisible: () => this._suggestionPopup.isVisible(),
-        });
-        this.addCommand({
-            id: 'completr-close-suggestion-popup',
-            name: 'Close suggestion popup',
-            hotkeys: [
-                {
-                    key: "Escape",
-                    modifiers: []
-                }
-            ],
-            editorCallback: (_) => this.suggestionPopup.close(),
-            // @ts-ignore
-            isVisible: () => this._suggestionPopup.isVisible(),
-        });
+    }
+
+    /**
+     * Registers snippet-related commands
+     */
+    private registerSnippetCommands() {
         this.addCommand({
             id: 'completr-jump-to-next-snippet-placeholder',
             name: 'Jump to next snippet placeholder',
@@ -322,7 +336,73 @@ export default class CompletrPlugin extends Plugin {
                 return placeholder != null;
             },
         });
+    }
 
+    /**
+     * Registers bypass commands
+     */
+    private registerBypassCommands() {
+        this.addCommand({
+            id: 'completr-bypass-enter-key',
+            name: 'Bypass the popup and press Enter',
+            hotkeys: [
+                {
+                    key: "Enter",
+                    modifiers: ["Ctrl"]
+                }
+            ],
+            editorCallback: (_) => {
+            },
+            // @ts-ignore
+            isBypassCommand: () => true,
+            isVisible: () => this._suggestionPopup.isVisible(),
+        });
+        
+        this.addCommand({
+            id: 'completr-bypass-tab-key',
+            name: 'Bypass the popup and press Tab',
+            hotkeys: [
+                {
+                    key: "Tab",
+                    modifiers: ["Ctrl"]
+                }
+            ],
+            editorCallback: (_) => {
+            },
+            // @ts-ignore
+            isBypassCommand: () => true,
+            isVisible: () => this._suggestionPopup.isVisible(),
+        });
+    }
+
+    /**
+     * Registers ignore list commands
+     */
+    private registerIgnoreListCommands() {
+        this.addCommand({
+            id: 'completr-ignore-current-word',
+            name: 'Add the currently selected word to the ignore list',
+            hotkeys: [
+                {
+                    key: "D",
+                    modifiers: ["Shift"]
+                }
+            ],
+            editorCallback: (editor) => {
+                SuggestionIgnorelist.add(this._suggestionPopup.getSelectedItem());
+                SuggestionIgnorelist.saveData(this.app.vault);
+                (this._suggestionPopup as any).trigger(editor, this.app.workspace.getActiveFile(), true);
+            },
+            // @ts-ignore
+            isBypassCommand: () => !this._suggestionPopup.isFocused(),
+            isVisible: () => this._suggestionPopup.isVisible(),
+        });
+    }
+
+    /**
+     * Registers internal commands for key bypassing
+     */
+    private registerInternalCommands() {
         // Here are some notes about this command and the isBypassCommand function:
         // - This command is registered last so that other hotkeys can be bound to tab without being overridden
         // - The isBypassCommand function exists, because obsidian has editor suggest related event handlers for Enter,
@@ -345,6 +425,7 @@ export default class CompletrPlugin extends Plugin {
             isBypassCommand: () => true,
             isVisible: () => this._suggestionPopup.isVisible(),
         });
+        
         this.addCommand({
             id: 'completr-fake-enter',
             name: '(internal)',
@@ -360,6 +441,7 @@ export default class CompletrPlugin extends Plugin {
             isBypassCommand: () => true,
             isVisible: () => this._suggestionPopup.isVisible(),
         });
+        
         this.addCommand({
             id: 'completr-fake-arrow-up',
             name: '(internal)',
@@ -375,6 +457,7 @@ export default class CompletrPlugin extends Plugin {
             isBypassCommand: () => true,
             isVisible: () => this._suggestionPopup.isVisible(),
         });
+        
         this.addCommand({
             id: 'completr-fake-arrow-down',
             name: '(internal)',

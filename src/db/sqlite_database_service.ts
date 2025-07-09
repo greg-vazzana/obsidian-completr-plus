@@ -97,35 +97,51 @@ export class SQLiteDatabaseService {
         }
 
         try {
-            // Check if database file exists
-            if (await this.vault.adapter.exists(this.dbFilePath)) {
-                // Load existing database
-                const fileData = await this.vault.adapter.readBinary(this.dbFilePath);
-                const uint8Array = new Uint8Array(fileData);
-                this.db = new this.SQL.Database(uint8Array);
-                console.log('Loaded existing SQLite database');
-            } else {
-                // Create new database
-                this.db = new this.SQL.Database();
-                console.log('Created new SQLite database');
-            }
-
-            // Ensure schema is up to date
-            this.db.exec(SQLITE_SCHEMA);
-            
-            // Initialize required sources
-            await this.initializeSources();
-            
-            // Save the database to ensure schema is persisted
+            await this.loadOrCreateDatabase();
+            await this.setupDatabaseSchema();
             await this.saveDatabase();
         } catch (error) {
             console.error('Failed to load database, creating new one:', error);
-            // Create new database on corruption
-            this.db = new this.SQL.Database();
-            this.db.exec(SQLITE_SCHEMA);
-            await this.initializeSources();
-            await this.saveDatabase();
+            await this.createFreshDatabase();
         }
+    }
+
+    /**
+     * Loads existing database or creates a new one
+     */
+    private async loadOrCreateDatabase(): Promise<void> {
+        if (await this.vault.adapter.exists(this.dbFilePath)) {
+            // Load existing database
+            const fileData = await this.vault.adapter.readBinary(this.dbFilePath);
+            const uint8Array = new Uint8Array(fileData);
+            this.db = new this.SQL.Database(uint8Array);
+            console.log('Loaded existing SQLite database');
+        } else {
+            // Create new database
+            this.db = new this.SQL.Database();
+            console.log('Created new SQLite database');
+        }
+    }
+
+    /**
+     * Sets up the database schema and required sources
+     */
+    private async setupDatabaseSchema(): Promise<void> {
+        // Ensure schema is up to date
+        this.db.exec(SQLITE_SCHEMA);
+        
+        // Initialize required sources
+        await this.initializeSources();
+    }
+
+    /**
+     * Creates a fresh database when loading fails
+     */
+    private async createFreshDatabase(): Promise<void> {
+        this.db = new this.SQL.Database();
+        this.db.exec(SQLITE_SCHEMA);
+        await this.initializeSources();
+        await this.saveDatabase();
     }
 
     private async saveDatabase(): Promise<void> {
@@ -214,13 +230,24 @@ export class SQLiteDatabaseService {
         this.ensureInitialized();
         
         const hash = await this.calculateFileHash(contents);
+        const existingSource = await this.findSourceByName(filename);
         
-        // Check if source exists
+        if (existingSource) {
+            return await this.updateExistingSource(existingSource, hash, filename);
+        } else {
+            return await this.createNewSource(filename, hash);
+        }
+    }
+
+    /**
+     * Finds a source by name
+     */
+    private async findSourceByName(filename: string): Promise<Source | null> {
         const selectResult = this.db.exec('SELECT * FROM sources WHERE name = ?', [filename]);
         
         if (selectResult.length > 0 && selectResult[0].values.length > 0) {
             const row = selectResult[0].values[0];
-            const existing: Source = {
+            return {
                 id: row[0] as number,
                 name: row[1] as string,
                 type: row[2] as "scan" | "word_list",
@@ -228,35 +255,46 @@ export class SQLiteDatabaseService {
                 checksum: row[4] as string || null,
                 file_exists: row[5] !== null ? Boolean(row[5]) : null
             };
-            
-            if (existing.checksum !== hash) {
-                // Delete all words from this source if hash changed
-                await this.deleteWordsBySource(existing.id!);
-                
-                // Update source
-                this.db.exec(`
-                    UPDATE sources 
-                    SET checksum = ?, last_updated = ?, file_exists = 1 
-                    WHERE id = ?
-                `, [hash, new Date().toISOString(), existing.id]);
-                this.markDirty();
-                
-                new Notice(`Word list '${filename}' has changed and will be re-imported`);
-            }
-            return existing.id!;
-        } else {
-            // Create new source
-            this.db.exec(`
-                INSERT INTO sources (name, type, checksum, last_updated, file_exists) 
-                VALUES (?, ?, ?, ?, 1)
-            `, [filename, 'word_list', hash, new Date().toISOString()]);
-            
-            const result = this.db.exec('SELECT last_insert_rowid() as id');
-            const insertId = result[0].values[0][0] as number;
-            
-            this.markDirty();
-            return insertId;
         }
+        
+        return null;
+    }
+
+    /**
+     * Updates an existing source if hash has changed
+     */
+    private async updateExistingSource(existing: Source, hash: string, filename: string): Promise<number> {
+        if (existing.checksum !== hash) {
+            // Delete all words from this source if hash changed
+            await this.deleteWordsBySource(existing.id!);
+            
+            // Update source
+            this.db.exec(`
+                UPDATE sources 
+                SET checksum = ?, last_updated = ?, file_exists = 1 
+                WHERE id = ?
+            `, [hash, new Date().toISOString(), existing.id]);
+            this.markDirty();
+            
+            new Notice(`Word list '${filename}' has changed and will be re-imported`);
+        }
+        return existing.id!;
+    }
+
+    /**
+     * Creates a new source
+     */
+    private async createNewSource(filename: string, hash: string): Promise<number> {
+        this.db.exec(`
+            INSERT INTO sources (name, type, checksum, last_updated, file_exists) 
+            VALUES (?, ?, ?, ?, 1)
+        `, [filename, 'word_list', hash, new Date().toISOString()]);
+        
+        const result = this.db.exec('SELECT last_insert_rowid() as id');
+        const insertId = result[0].values[0][0] as number;
+        
+        this.markDirty();
+        return insertId;
     }
 
     async markSourceFileStatus(filename: string, exists: boolean): Promise<void> {

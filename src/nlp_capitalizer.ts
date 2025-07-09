@@ -285,70 +285,111 @@ export default class NLPCapitalizer {
             });
         }
 
-        // Find the last sentence ending punctuation in the line
+        const sentenceBoundary = this.findLastSentenceBoundary(currentLine);
+        if (!sentenceBoundary) {
+            return false;
+        }
+
+        const wordToCapitalize = this.findWordAfterSentenceBoundary(currentLine, sentenceBoundary, cursor);
+        if (!wordToCapitalize) {
+            return false;
+        }
+
+        return this.capitalizeWordAtPosition(editor, wordToCapitalize, cursor);
+    }
+
+    /**
+     * Finds the last sentence boundary (punctuation) in the line
+     */
+    private findLastSentenceBoundary(line: string): number | null {
         const sentenceEndings = /[.!?]/g;
         let lastPunctIndex = -1;
         let match;
         
-        while ((match = sentenceEndings.exec(currentLine)) !== null) {
+        while ((match = sentenceEndings.exec(line)) !== null) {
             lastPunctIndex = match.index;
         }
         
-        if (lastPunctIndex === -1) {
-            return false; // No sentence ending found
-        }
-        
-        // Look for the first word after the sentence ending
-        const afterPunctuation = currentLine.substring(lastPunctIndex + 1);
+        return lastPunctIndex === -1 ? null : lastPunctIndex;
+    }
+
+    /**
+     * Finds the first word after a sentence boundary that needs capitalization
+     */
+    private findWordAfterSentenceBoundary(
+        line: string, 
+        boundaryIndex: number, 
+        cursor: EditorPosition
+    ): { word: string; startPos: number; endPos: number } | null {
+        const afterPunctuation = line.substring(boundaryIndex + 1);
         const wordMatch = afterPunctuation.match(/^\s*([a-z]+)/);
         
         if (this.config.debug) {
             console.log('NLPCapitalizer: Sentence boundary analysis', {
-                lastPunctIndex,
+                boundaryIndex,
                 afterPunctuation: `"${afterPunctuation}"`,
                 wordMatch: wordMatch ? wordMatch[1] : null
             });
         }
         
-        if (wordMatch && wordMatch[1]) {
-            const lowercaseWord = wordMatch[1];
-            const wordStartInAfterPunct = wordMatch.index! + (wordMatch[0].length - lowercaseWord.length);
-            const wordStart = lastPunctIndex + 1 + wordStartInAfterPunct;
-            const wordEnd = wordStart + lowercaseWord.length;
-            
-            // Only capitalize if the cursor is positioned after this word (we're actively typing)
-            if (cursor.ch >= wordEnd) {
-                if (this.config.debug) {
-                    console.log('NLPCapitalizer: Found word to capitalize', {
-                        lowercaseWord,
-                        wordStart,
-                        wordEnd,
-                        cursorCh: cursor.ch
-                    });
-                }
+        if (!wordMatch || !wordMatch[1]) {
+            return null;
+        }
 
-                if (this.shouldCapitalizeWord(lowercaseWord)) {
-                    const capitalizedWord = this.capitalizeWord(lowercaseWord);
-                    
-                    const startPos: EditorPosition = { line: cursor.line, ch: wordStart };
-                    const endPos: EditorPosition = { line: cursor.line, ch: wordEnd };
-                    
-                    editor.replaceRange(capitalizedWord, startPos, endPos);
-                    
-                    if (this.config.debug) {
-                        console.log('NLPCapitalizer: Sentence capitalization applied', {
-                            original: lowercaseWord,
-                            capitalized: capitalizedWord,
-                            position: { start: startPos, end: endPos }
-                        });
-                    }
-                    
-                    return true;
-                }
-            }
+        const lowercaseWord = wordMatch[1];
+        const wordStartInAfterPunct = wordMatch.index! + (wordMatch[0].length - lowercaseWord.length);
+        const wordStart = boundaryIndex + 1 + wordStartInAfterPunct;
+        const wordEnd = wordStart + lowercaseWord.length;
+        
+        // Only capitalize if the cursor is positioned after this word (we're actively typing)
+        if (cursor.ch < wordEnd) {
+            return null;
+        }
+
+        return {
+            word: lowercaseWord,
+            startPos: wordStart,
+            endPos: wordEnd
+        };
+    }
+
+    /**
+     * Capitalizes a word at the given position if it should be capitalized
+     */
+    private capitalizeWordAtPosition(
+        editor: Editor,
+        wordInfo: { word: string; startPos: number; endPos: number },
+        cursor: EditorPosition
+    ): boolean {
+        if (this.config.debug) {
+            console.log('NLPCapitalizer: Found word to capitalize', {
+                word: wordInfo.word,
+                startPos: wordInfo.startPos,
+                endPos: wordInfo.endPos,
+                cursorCh: cursor.ch
+            });
+        }
+
+        if (!this.shouldCapitalizeWord(wordInfo.word)) {
+            return false;
+        }
+
+        const capitalizedWord = this.capitalizeWord(wordInfo.word);
+        
+        const startPos: EditorPosition = { line: cursor.line, ch: wordInfo.startPos };
+        const endPos: EditorPosition = { line: cursor.line, ch: wordInfo.endPos };
+        
+        editor.replaceRange(capitalizedWord, startPos, endPos);
+        
+        if (this.config.debug) {
+            console.log('NLPCapitalizer: Sentence capitalization applied', {
+                original: wordInfo.word,
+                capitalized: capitalizedWord,
+                position: { start: startPos, end: endPos }
+            });
         }
         
-        return false;
+        return true;
     }
 
     /**
@@ -366,14 +407,38 @@ export default class NLPCapitalizer {
             });
         }
 
+        const boundaries = this.findAllSentenceBoundaries(currentLine);
+        if (boundaries.length === 0) {
+            return false;
+        }
+
         let madeChanges = false;
         
-        // Find all sentence boundaries in the line
+        // For each sentence boundary, check if there's a sentence after it that needs capitalization
+        for (let i = 0; i < boundaries.length; i++) {
+            const boundaryPos = boundaries[i];
+            const nextBoundaryPos = i + 1 < boundaries.length ? boundaries[i + 1] : currentLine.length;
+            
+            const sentenceRange = { start: boundaryPos + 1, end: nextBoundaryPos };
+            const wordToCapitalize = this.findFirstWordInSentenceRange(currentLine, sentenceRange);
+            
+            if (wordToCapitalize && this.capitalizeWordInCompletedSentence(editor, wordToCapitalize, cursor)) {
+                madeChanges = true;
+            }
+        }
+        
+        return madeChanges;
+    }
+
+    /**
+     * Finds all sentence boundaries in a line
+     */
+    private findAllSentenceBoundaries(line: string): number[] {
         const sentenceEndings = /[.!?]/g;
         const boundaries: number[] = [];
         let match;
         
-        while ((match = sentenceEndings.exec(currentLine)) !== null) {
+        while ((match = sentenceEndings.exec(line)) !== null) {
             boundaries.push(match.index);
         }
         
@@ -381,56 +446,73 @@ export default class NLPCapitalizer {
             console.log('NLPCapitalizer: Found sentence boundaries at', boundaries);
         }
         
-        // For each sentence boundary, check if there's a sentence after it that needs capitalization
-        for (let i = 0; i < boundaries.length; i++) {
-            const boundaryPos = boundaries[i];
-            const nextBoundaryPos = i + 1 < boundaries.length ? boundaries[i + 1] : currentLine.length;
-            
-            // Get the text of the sentence after this boundary
-            const sentenceStart = boundaryPos + 1;
-            const sentenceText = currentLine.substring(sentenceStart, nextBoundaryPos);
-            
-            // Look for the first word in this sentence
-            const wordMatch = sentenceText.match(/^\s*([a-z]+)/);
-            
-            if (wordMatch && wordMatch[1]) {
-                const lowercaseWord = wordMatch[1];
-                const wordStartInSentence = wordMatch.index! + (wordMatch[0].length - lowercaseWord.length);
-                const absoluteWordStart = sentenceStart + wordStartInSentence;
-                const absoluteWordEnd = absoluteWordStart + lowercaseWord.length;
-                
-                if (this.config.debug) {
-                    console.log('NLPCapitalizer: Found sentence to capitalize', {
-                        boundaryPos,
-                        sentenceText: `"${sentenceText}"`,
-                        lowercaseWord,
-                        absoluteWordStart,
-                        absoluteWordEnd
-                    });
-                }
-                
-                if (this.shouldCapitalizeWord(lowercaseWord)) {
-                    const capitalizedWord = this.capitalizeWord(lowercaseWord);
-                    
-                    const startPos: EditorPosition = { line: cursor.line, ch: absoluteWordStart };
-                    const endPos: EditorPosition = { line: cursor.line, ch: absoluteWordEnd };
-                    
-                    editor.replaceRange(capitalizedWord, startPos, endPos);
-                    
-                    if (this.config.debug) {
-                        console.log('NLPCapitalizer: Capitalized completed sentence word', {
-                            original: lowercaseWord,
-                            capitalized: capitalizedWord,
-                            position: { start: startPos, end: endPos }
-                        });
-                    }
-                    
-                    madeChanges = true;
-                }
-            }
+        return boundaries;
+    }
+
+    /**
+     * Finds the first word in a sentence range that needs capitalization
+     */
+    private findFirstWordInSentenceRange(
+        line: string, 
+        range: { start: number; end: number }
+    ): { word: string; absoluteStart: number; absoluteEnd: number } | null {
+        const sentenceText = line.substring(range.start, range.end);
+        const wordMatch = sentenceText.match(/^\s*([a-z]+)/);
+        
+        if (!wordMatch || !wordMatch[1]) {
+            return null;
+        }
+
+        const lowercaseWord = wordMatch[1];
+        const wordStartInSentence = wordMatch.index! + (wordMatch[0].length - lowercaseWord.length);
+        const absoluteWordStart = range.start + wordStartInSentence;
+        const absoluteWordEnd = absoluteWordStart + lowercaseWord.length;
+        
+        if (this.config.debug) {
+            console.log('NLPCapitalizer: Found sentence to capitalize', {
+                boundaryPos: range.start - 1,
+                sentenceText: `"${sentenceText}"`,
+                lowercaseWord,
+                absoluteWordStart,
+                absoluteWordEnd
+            });
         }
         
-        return madeChanges;
+        return {
+            word: lowercaseWord,
+            absoluteStart: absoluteWordStart,
+            absoluteEnd: absoluteWordEnd
+        };
+    }
+
+    /**
+     * Capitalizes a word in a completed sentence
+     */
+    private capitalizeWordInCompletedSentence(
+        editor: Editor,
+        wordInfo: { word: string; absoluteStart: number; absoluteEnd: number },
+        cursor: EditorPosition
+    ): boolean {
+        if (!this.shouldCapitalizeWord(wordInfo.word)) {
+            return false;
+        }
+
+        const capitalizedWord = this.capitalizeWord(wordInfo.word);
+        
+        const startPos: EditorPosition = { line: cursor.line, ch: wordInfo.absoluteStart };
+        const endPos: EditorPosition = { line: cursor.line, ch: wordInfo.absoluteEnd };
+        
+        editor.replaceRange(capitalizedWord, startPos, endPos);
+        
+        if (this.config.debug) {
+            console.log('NLPCapitalizer: Capitalized completed sentence word', {
+                original: wordInfo.word,
+                capitalized: capitalizedWord,
+                position: { start: startPos, end: endPos }
+            });
+        }
+        
+        return true;
     }
 
     /**
@@ -451,7 +533,39 @@ export default class NLPCapitalizer {
             });
         }
 
-        // Use NLP to find the first actual word in the sentence
+        const firstWord = this.extractFirstWordFromSentence(sentence);
+        if (!firstWord) {
+            return false;
+        }
+
+        if (!this.shouldCapitalizeWord(firstWord)) {
+            if (this.config.debug) {
+                console.log('NLPCapitalizer: Word should not be capitalized');
+            }
+            return false;
+        }
+
+        const wordPosition = this.findWordPositionInEditor(
+            editor,
+            firstWord,
+            sentenceStartPos,
+            contextLines
+        );
+
+        if (!wordPosition) {
+            if (this.config.debug) {
+                console.log('NLPCapitalizer: Word position not found');
+            }
+            return false;
+        }
+
+        return this.applyCapitalizationToWord(editor, firstWord, wordPosition, sentence);
+    }
+
+    /**
+     * Extracts the first word from a sentence using NLP
+     */
+    private extractFirstWordFromSentence(sentence: string): string | null {
         const sentenceDoc = nlp(sentence);
         const firstTerm = sentenceDoc.terms().first();
         
@@ -459,7 +573,7 @@ export default class NLPCapitalizer {
             if (this.config.debug) {
                 console.log('NLPCapitalizer: No first term found in sentence');
             }
-            return false;
+            return null;
         }
 
         const firstWord = firstTerm.text();
@@ -473,38 +587,27 @@ export default class NLPCapitalizer {
             });
         }
         
-        if (!this.shouldCapitalizeWord(cleanFirstWord)) {
-            if (this.config.debug) {
-                console.log('NLPCapitalizer: Word should not be capitalized');
-            }
-            return false;
-        }
+        return cleanFirstWord;
+    }
 
-        // Find the position of this word in the editor
-        const wordPosition = this.findWordPositionInEditor(
-            editor,
-            cleanFirstWord,
-            sentenceStartPos,
-            contextLines
-        );
-
+    /**
+     * Applies capitalization to a word at the given position
+     */
+    private applyCapitalizationToWord(
+        editor: Editor,
+        word: string,
+        wordPosition: { start: EditorPosition; end: EditorPosition },
+        sentence: string
+    ): boolean {
         if (this.config.debug) {
             console.log('NLPCapitalizer: Word position search result', {
                 wordPosition,
-                searchingFor: cleanFirstWord,
-                sentenceStartPos
+                searchingFor: word
             });
         }
 
-        if (!wordPosition) {
-            if (this.config.debug) {
-                console.log('NLPCapitalizer: Word position not found');
-            }
-            return false;
-        }
-
-        const capitalizedWord = this.capitalizeWord(cleanFirstWord);
-        if (capitalizedWord === cleanFirstWord) {
+        const capitalizedWord = this.capitalizeWord(word);
+        if (capitalizedWord === word) {
             if (this.config.debug) {
                 console.log('NLPCapitalizer: Word already capitalized');
             }
@@ -517,7 +620,7 @@ export default class NLPCapitalizer {
         if (this.config.debug) {
             console.log('NLPCapitalizer: Sentence capitalization applied', {
                 sentence: sentence.substring(0, DEBUG_SENTENCE_MAX_LENGTH) + '...',
-                original: cleanFirstWord,
+                original: word,
                 capitalized: capitalizedWord
             });
         }
