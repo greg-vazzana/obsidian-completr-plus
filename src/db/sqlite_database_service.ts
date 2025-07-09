@@ -3,7 +3,7 @@ import { createHash } from 'crypto';
 import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
 import { SQLITE_SCHEMA } from './sqlite_schema';
 import { intoCompletrPath } from '../settings';
-import { DATABASE_SAVE_INTERVAL_MS } from '../constants';
+import { DATABASE_SAVE_INTERVAL_MS, CONFIG_FILES, DATABASE_SOURCE_NAMES, ERROR_MESSAGES } from '../constants';
 
 // Import the same interfaces from the original database service
 interface Source {
@@ -70,7 +70,7 @@ export class SQLiteDatabaseService {
 
         try {
             // Load WASM file using vault adapter - same approach as ignorelist.ts
-            const wasmPath = intoCompletrPath(this.vault, 'sql-wasm.wasm');
+            const wasmPath = intoCompletrPath(this.vault, CONFIG_FILES.WASM_FILE);
             const wasmBinary = await this.vault.adapter.readBinary(wasmPath);
             
             // Initialize sql.js with the WASM binary data
@@ -196,7 +196,7 @@ export class SQLiteDatabaseService {
 
     private ensureInitialized(): void {
         if (!this.db) {
-            throw new Error('Database not initialized');
+            throw new Error(ERROR_MESSAGES.DATABASE_NOT_INITIALIZED);
         }
     }
 
@@ -207,14 +207,14 @@ export class SQLiteDatabaseService {
 
         // Ensure scan source exists
         const stmt = this.db.prepare('SELECT id FROM sources WHERE name = ?');
-        const result = stmt.get(['scan']);
+        const result = stmt.get([DATABASE_SOURCE_NAMES.SCAN]);
         
         if (!result || result.length === 0) {
             const insertStmt = this.db.prepare(`
                 INSERT INTO sources (name, type, last_updated) 
                 VALUES (?, ?, ?)
             `);
-            insertStmt.run(['scan', 'scan', new Date().toISOString()]);
+            insertStmt.run([DATABASE_SOURCE_NAMES.SCAN, DATABASE_SOURCE_NAMES.SCAN, new Date().toISOString()]);
             insertStmt.free();
             this.markDirty();
         }
@@ -631,7 +631,7 @@ export class SQLiteDatabaseService {
         this.ensureInitialized();
         
         const stmt = this.db.prepare('SELECT id FROM sources WHERE name = ?');
-        const result = stmt.get(['scan']);
+        const result = stmt.get([DATABASE_SOURCE_NAMES.SCAN]);
         stmt.free();
         
         return (result && result.length > 0) ? result[0] as number : null;

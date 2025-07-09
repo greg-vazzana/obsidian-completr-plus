@@ -3,10 +3,8 @@ import { CompletrSettings, intoCompletrPath } from "../settings";
 import { BlockType, EditorUtils } from "../utils/editor_utils";
 import { Notice, Vault } from "obsidian";
 import { SuggestionIgnorelist } from "./ignorelist";
-import { ERROR_NOTICE_DURATION_MS } from "../constants";
+import { ERROR_NOTICE_DURATION_MS, CONFIG_FILES, ERROR_MESSAGES } from "../constants";
 import { TextUtils } from "../utils/text_utils";
-
-const LATEX_COMMANDS_PATH = "latex_commands.json";
 
 class LatexSuggestionProvider implements SuggestionProvider {
 
@@ -50,7 +48,7 @@ class LatexSuggestionProvider implements SuggestionProvider {
     }
 
     async loadCommands(vault: Vault) {
-        const path = intoCompletrPath(vault, LATEX_COMMANDS_PATH);
+        const path = intoCompletrPath(vault, CONFIG_FILES.LATEX_COMMANDS);
         if (!(await vault.adapter.exists(path))) {
             const defaultCommands = generateDefaultLatexCommands();
             await vault.adapter.write(path, JSON.stringify(defaultCommands, null, 2));
@@ -65,12 +63,12 @@ class LatexSuggestionProvider implements SuggestionProvider {
                     );
                 const invalidCommand = commands.find(c => c.displayName.includes("\n"));
                 if (invalidCommand)
-                    throw new Error("Display name cannot contain a newline: " + invalidCommand.displayName);
+                    throw new Error(ERROR_MESSAGES.NEWLINE_IN_DISPLAY_NAME(invalidCommand.displayName));
 
                 this.loadedCommands = commands;
             } catch (e) {
-                console.log("Completr latex commands parse error:", e.message);
-                new Notice("Failed to parse latex commands file " + path + ". Using default commands.", ERROR_NOTICE_DURATION_MS);
+                console.log(ERROR_MESSAGES.PARSE_ERROR(path, "latex commands"), e.message);
+                new Notice(ERROR_MESSAGES.FAILED_TO_PARSE_WITH_FALLBACK(path, "default commands"), ERROR_NOTICE_DURATION_MS);
                 this.loadedCommands = generateDefaultLatexCommands();
             }
         }

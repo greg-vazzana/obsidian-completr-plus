@@ -57,4 +57,80 @@ export const DEBUG_FULL_TEXT_MAX_LENGTH = 200;
 export const WORD_FREQUENCY_RATING_MULTIPLIER = 1000;
 
 /** Maximum number of front matter suggestions to return */
-export const MAX_FRONT_MATTER_SUGGESTIONS = 10; 
+export const MAX_FRONT_MATTER_SUGGESTIONS = 10;
+
+// =============================================================================
+// FILE PATH CONSTANTS
+// =============================================================================
+
+/** Plugin data directory path segment */
+export const PLUGIN_DATA_PATH = "/plugins/obsidian-completr-plus/";
+
+/** Configuration file names */
+export const CONFIG_FILES = {
+    LATEX_COMMANDS: "latex_commands.json",
+    CALLOUT_SUGGESTIONS: "callout_suggestions.json",
+    IGNORELIST: "ignored_suggestions.txt",
+    DATABASE: "completr.db",
+    WASM_FILE: "sql-wasm.wasm"
+} as const;
+
+/** Folder names within plugin directory */
+export const FOLDERS = {
+    WORD_LISTS: "wordLists"
+} as const;
+
+// =============================================================================
+// REGEX PATTERNS
+// =============================================================================
+
+/** Common regex patterns used across the codebase */
+export const PATTERNS = {
+    NEW_LINE: /\r?\n/,
+    BLOCKQUOTE_PREFIX: /^(?:[ \t]*>[ \t]*)+/,
+    // @ts-ignore: ES2022 'd' flag required for indices property
+    CALLOUT_HEADER: /^(\[!?([^\]]*)\])([+-]?)([ \t]*)(.*)$/d,      // ES2022 'd' flag for indices
+    // @ts-ignore: ES2022 'd' flag required for indices property
+    CALLOUT_HEADER_PARTIAL: /^(\[!?([^\]]*))$/d                   // ES2022 'd' flag for indices
+} as const;
+
+// =============================================================================
+// DATABASE CONSTANTS
+// =============================================================================
+
+/** Database source type constants */
+export const DATABASE_SOURCE_TYPES = {
+    SCAN: "scan",
+    WORD_LIST: "word_list"
+} as const;
+
+/** Database source names */
+export const DATABASE_SOURCE_NAMES = {
+    SCAN: "scan"
+} as const;
+
+// =============================================================================
+// ERROR MESSAGE TEMPLATES
+// =============================================================================
+
+/** Reusable error message templates */
+export const ERROR_MESSAGES = {
+    INVALID_JSON_ARRAY: (file: string) => `Invalid suggestions file ${file}: JSON root must be array.`,
+    NEWLINE_IN_DISPLAY_NAME: (name: string) => `Display name cannot contain a newline: ${name}`,
+    PARSE_ERROR: (file: string, type: string) => `Completr ${type} parse error`,
+    FILE_READ_ERROR: (file: string) => `Completr: Unable to read ${file}`,
+    DATABASE_NOT_INITIALIZED: 'Database not initialized',
+    PROVIDER_NOT_INITIALIZED: (provider: string) => `${provider} provider not properly initialized: db not set`,
+    FAILED_TO_PARSE_WITH_FALLBACK: (file: string, fallback: string) => `Failed to parse ${file}. Using ${fallback}.`
+} as const;
+
+// =============================================================================
+// VALIDATION CONSTANTS
+// =============================================================================
+
+/** Characters and patterns for validation */
+export const VALIDATION = {
+    NEWLINE_CHAR: "\n",
+    BACKSLASH_CHAR: "\\",
+    DOLLAR_CHAR: "$"
+} as const; 

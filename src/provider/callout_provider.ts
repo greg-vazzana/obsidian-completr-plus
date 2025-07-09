@@ -1,17 +1,11 @@
 import { Notice, Vault } from "obsidian";
 import { getApi } from "obsidian-callout-manager";
 
-import { ERROR_NOTICE_DURATION_MS } from "../constants";
+import { ERROR_NOTICE_DURATION_MS, CONFIG_FILES, ERROR_MESSAGES, PATTERNS } from "../constants";
 import CompletrPlugin from "../main";
 import { CalloutProviderSource, CompletrSettings, intoCompletrPath } from "../settings";
 import { SuggestionIgnorelist } from "./ignorelist";
 import { Suggestion, SuggestionContext, SuggestionProvider } from "./provider";
-
-const CALLOUT_SUGGESTIONS_FILE = "callout_suggestions.json";
-
-const BLOCKQUOTE_PREFIX_REGEX = /^(?:[ \t]*>[ \t]*)+/;
-const CALLOUT_HEADER_REGEX = /^(\[!?([^\]]*)\])([+-]?)([ \t]*)(.*)$/d; // [!TYPE]- TITLE
-const CALLOUT_HEADER_PARTIAL_REGEX = /^(\[!?([^\]]*))$/d;           // [!TYPE
 
 class CalloutSuggestionProvider implements SuggestionProvider {
     blocksAllOtherProviders = true;
@@ -98,7 +92,7 @@ class CalloutSuggestionProvider implements SuggestionProvider {
     }
 
     protected async loadSuggestionsUsingCompletr(vault: Vault) {
-        const path = intoCompletrPath(vault, CALLOUT_SUGGESTIONS_FILE);
+        const path = intoCompletrPath(vault, CONFIG_FILES.CALLOUT_SUGGESTIONS);
 
         if (!(await vault.adapter.exists(path))) {
             const defaultCommands = generateDefaulCalloutOptions();
@@ -149,7 +143,7 @@ function untrimEnd(string: string) {
  * Extract information about the block quote.
  */
 function extractBlockQuotePrefix(line: string): { depth: number, chOffset: number, text: string } | null {
-    const matches = BLOCKQUOTE_PREFIX_REGEX.exec(line);
+    const matches = PATTERNS.BLOCKQUOTE_PREFIX.exec(line);
     if (matches == null)
         return null;
 
@@ -197,16 +191,19 @@ function extractCalloutHeader(line: string): CalloutHeader | null {
     };
 
     // Try parsing the full header.
-    let matches = CALLOUT_HEADER_REGEX.exec(line);
+    let matches = PATTERNS.CALLOUT_HEADER.exec(line);
     if (matches !== null) {
+        // @ts-ignore: indices property exists with 'd' flag (ES2022)
         [result.type.start, result.type.end] = matches.indices[1];
         result.type.rawText = matches[1];
         result.type.text = matches[2].trim();
 
+        // @ts-ignore: indices property exists with 'd' flag (ES2022)
         [result.foldable.start, result.foldable.end] = matches.indices[3];
         result.foldable.rawText = matches[3] + matches[4];
         result.foldable.text = result.foldable.rawText.trim();
 
+        // @ts-ignore: indices property exists with 'd' flag (ES2022)
         [result.title.start, result.title.end] = matches.indices[5];
         result.title.rawText = matches[5];
         result.title.text = matches[5].trim();
@@ -214,8 +211,9 @@ function extractCalloutHeader(line: string): CalloutHeader | null {
     }
 
     // Try parsing the partial header.
-    matches = CALLOUT_HEADER_PARTIAL_REGEX.exec(line);
+    matches = PATTERNS.CALLOUT_HEADER_PARTIAL.exec(line);
     if (matches !== null) {
+        // @ts-ignore: indices property exists with 'd' flag (ES2022)
         [result.type.start, result.type.end] = matches.indices[1];
         result.type.rawText = matches[1];
         result.type.text = matches[2].trim();

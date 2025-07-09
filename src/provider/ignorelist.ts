@@ -1,9 +1,7 @@
 import { Suggestion } from "./provider";
 import { Vault } from "obsidian";
 import { intoCompletrPath } from "../settings";
-
-const IGNORELIST_PATH = "ignored_suggestions.txt";
-const NEW_LINE_REGEX = /\r?\n/;
+import { CONFIG_FILES, PATTERNS } from "../constants";
 
 export const SuggestionIgnorelist = new class {
     private ignorelist: Set<string> = new Set<string>();
@@ -43,15 +41,15 @@ export const SuggestionIgnorelist = new class {
     }
 
     async saveData(vault: Vault) {
-        await vault.adapter.write(intoCompletrPath(vault, IGNORELIST_PATH), [...this.ignorelist].join("\n"));
+        await vault.adapter.write(intoCompletrPath(vault, CONFIG_FILES.IGNORELIST), [...this.ignorelist].join("\n"));
     }
 
     async loadData(vault: Vault) {
-        const path = intoCompletrPath(vault, IGNORELIST_PATH);
+        const path = intoCompletrPath(vault, CONFIG_FILES.IGNORELIST);
         if (!(await vault.adapter.exists(path)))
             return
 
-        const contents = (await vault.adapter.read(path)).split(NEW_LINE_REGEX);
+        const contents = (await vault.adapter.read(path)).split(PATTERNS.NEW_LINE);
         for (let word of contents) {
             if (!word)
                 continue;
