@@ -19,6 +19,7 @@ import { WordPatterns } from "./word_patterns";
 import { LiveWordTracker } from "./live_word_tracker";
 import { CursorActivityListener } from "./cursor_activity_listener";
 import { SUCCESS_NOTICE_DURATION_MS } from "./constants";
+import { providerRegistry } from "./provider/provider_registry";
 
 
 
@@ -43,6 +44,9 @@ export default class CompletrPlugin extends Plugin {
         this._liveWordTracker = new LiveWordTracker(DEFAULT_SETTINGS); // Use defaults initially
         
         await this.loadSettings();
+
+        // Register providers in the correct order (original order: [FrontMatter, Callout, Latex, Scanner, WordList])
+        this.registerProviders();
 
         this._suggestionPopup = new SuggestionPopup(this.app, this.settings, this.snippetManager);
 
@@ -477,6 +481,20 @@ export default class CompletrPlugin extends Plugin {
         if (this._database) {
             await this._database.shutdown();
         }
+        // Clear provider registry on unload
+        providerRegistry.clear();
+    }
+
+    /**
+     * Register all providers in the correct order
+     * Original order: [FrontMatter, Callout, Latex, Scanner, WordList]
+     */
+    private registerProviders() {
+        providerRegistry.register(FrontMatter);
+        providerRegistry.register(Callout);
+        providerRegistry.register(Latex);
+        providerRegistry.register(Scanner);
+        providerRegistry.register(WordList);
     }
 
     async loadSettings() {

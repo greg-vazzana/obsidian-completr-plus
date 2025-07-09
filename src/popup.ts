@@ -1,7 +1,4 @@
-import { Suggestion, SuggestionProvider } from "./provider/provider";
-import { Latex } from "./provider/latex_provider";
-import { WordList } from "./provider/word_list_provider";
-import { Scanner } from "./provider/scanner_provider";
+import { Suggestion } from "./provider/provider";
 import {
     App,
     Editor,
@@ -14,13 +11,10 @@ import {
 } from "obsidian";
 import SnippetManager from "./snippet_manager";
 import { CompletrSettings } from "./settings";
-import { FrontMatter } from "./provider/front_matter_provider";
 import {matchWordBackwards} from "./editor_helpers";
 import { SuggestionIgnorelist } from "./provider/ignorelist";
-import { Callout } from "./provider/callout_provider";
 import { WordPatterns } from "./word_patterns";
-
-const PROVIDERS: SuggestionProvider[] = [FrontMatter, Callout, Latex, Scanner, WordList];
+import { providerRegistry } from "./provider/provider_registry";
 
 export default class SuggestionPopup extends EditorSuggest<Suggestion> {
     /**
@@ -68,7 +62,7 @@ export default class SuggestionPopup extends EditorSuggest<Suggestion> {
     ): Suggestion[] | Promise<Suggestion[]> {
         let suggestions: Suggestion[] = [];
 
-        for (let provider of PROVIDERS) {
+        for (let provider of providerRegistry.getProviders()) {
             suggestions = [...suggestions, ...provider.getSuggestions({
                 ...context,
                 separatorChar: this.separatorChar
