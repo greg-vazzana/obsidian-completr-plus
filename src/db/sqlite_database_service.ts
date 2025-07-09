@@ -263,22 +263,33 @@ export class SQLiteDatabaseService {
         this.ensureInitialized();
         
         const selectStmt = this.db.prepare('SELECT * FROM sources WHERE name = ?');
-        const existing = selectStmt.get([filename]) as Source;
+        const row = selectStmt.get([filename]);
         
-        if (existing && existing.file_exists !== exists) {
-            const updateStmt = this.db.prepare(`
-                UPDATE sources 
-                SET file_exists = ?, last_updated = ? 
-                WHERE id = ?
-            `);
-            updateStmt.run([exists ? 1 : 0, new Date().toISOString(), existing.id]);
-            this.markDirty();
+        if (row && row.length > 0) {
+            const existing: Source = {
+                id: row[0] as number,
+                name: row[1] as string,
+                type: row[2] as "scan" | "word_list",
+                last_updated: row[3] as string,
+                checksum: row[4] as string || null,
+                file_exists: row[5] !== null ? Boolean(row[5]) : null
+            };
             
-            if (!exists) {
-                new Notice(`Word list '${filename}' no longer exists`);
+            if (existing.file_exists !== exists) {
+                const updateStmt = this.db.prepare(`
+                    UPDATE sources 
+                    SET file_exists = ?, last_updated = ? 
+                    WHERE id = ?
+                `);
+                updateStmt.run([exists ? 1 : 0, new Date().toISOString(), existing.id]);
+                this.markDirty();
+                
+                if (!exists) {
+                    new Notice(`Word list '${filename}' no longer exists`);
+                }
+                
+                updateStmt.free();
             }
-            
-            updateStmt.free();
         }
         
         selectStmt.free();
@@ -513,9 +524,13 @@ export class SQLiteDatabaseService {
             SELECT id, frequency FROM frontmatter 
             WHERE key = ? AND value = ? AND file_path = ?
         `);
-        const existing = selectStmt.get([key, value, filePath ?? null]) as { id: number; frequency: number };
+        const row = selectStmt.get([key, value, filePath ?? null]);
         
-        if (existing) {
+        if (row && row.length > 0) {
+            const existing = {
+                id: row[0] as number,
+                frequency: row[1] as number
+            };
             // Increment frequency
             const updateStmt = this.db.prepare('UPDATE frontmatter SET frequency = frequency + 1 WHERE id = ?');
             updateStmt.run([existing.id]);
