@@ -1,7 +1,9 @@
 import { Suggestion, SuggestionContext, SuggestionProvider } from "./provider";
 import { CompletrSettings } from "../settings";
 import { CachedMetadata, Editor, getAllTags, MetadataCache, TFile } from "obsidian";
-import { isInFrontMatterBlock, matchWordBackwards, maybeLowerCase } from "../editor_helpers";
+import { EditorUtils } from "../utils/editor_utils";
+import { TextUtils } from "../utils/text_utils";
+import { ValidationUtils } from "../utils/validation_utils";
 
 const BASE_SUGGESTION = new Suggestion(
     "front-matter",
@@ -15,7 +17,7 @@ const PUBLISH_SUGGESTION = new Suggestion(
 );
 
 function findTagCompletionType(keyInfo: YAMLKeyInfo, editor: Editor, currentLineIndex: number, currentLine: string, ignoreCase: boolean): "inline" | "multiline" | "none" {
-    const key = maybeLowerCase(keyInfo.key, ignoreCase);
+    const key = TextUtils.maybeLowerCase(keyInfo.key, ignoreCase);
     const isList = keyInfo.isList;
 
     //Easy case
@@ -95,16 +97,16 @@ class FrontMatterSuggestionProvider implements SuggestionProvider {
             return [];
 
         const firstLine = context.editor.getLine(0);
-        const isInFrontMatter = isInFrontMatterBlock(context.editor, context.start);
+        const isInFrontMatter = ValidationUtils.isInFrontMatterBlock(context.editor, context.start);
         const ignoreCase = settings.frontMatterIgnoreCase;
 
-        if (!isInFrontMatter && context.start.line === 0 && (firstLine === "" || "front-matter".startsWith(maybeLowerCase(firstLine, ignoreCase)))) {
+        if (!isInFrontMatter && context.start.line === 0 && (firstLine === "" || "front-matter".startsWith(TextUtils.maybeLowerCase(firstLine, ignoreCase)))) {
             return [BASE_SUGGESTION];
         } else if (!isInFrontMatter) {
             return [];
         }
 
-        const query = maybeLowerCase(context.query, ignoreCase);
+        const query = TextUtils.maybeLowerCase(context.query, ignoreCase);
 
         //Match snippets
         if (context.start.ch === 0) {
@@ -136,7 +138,7 @@ class FrontMatterSuggestionProvider implements SuggestionProvider {
         }
 
         //YAML key specific completions
-        const currentLine = maybeLowerCase(context.editor.getLine(context.start.line), ignoreCase);
+        const currentLine = TextUtils.maybeLowerCase(context.editor.getLine(context.start.line), ignoreCase);
         if (currentLine.startsWith("publish:")) //Publish key
             return FrontMatterSuggestionProvider.getPublishSuggestions(query);
 
@@ -152,7 +154,7 @@ class FrontMatterSuggestionProvider implements SuggestionProvider {
             return [];
 
         //We need a custom query to force include `/`, `-`, `_` for tags.
-        const customQuery = maybeLowerCase(matchWordBackwards(
+        const customQuery = TextUtils.maybeLowerCase(EditorUtils.matchWordBackwards(
             context.editor,
             context.end,
             (char) => new RegExp("[" + settings.characterRegex + "/\\-_]", "u").test(char),
@@ -173,7 +175,7 @@ class FrontMatterSuggestionProvider implements SuggestionProvider {
             }
         }
 
-        return [...key.completions].filter(tag => maybeLowerCase(tag, ignoreCase).startsWith(customQuery)).map(tag => {
+        return [...key.completions].filter(tag => TextUtils.maybeLowerCase(tag, ignoreCase).startsWith(customQuery)).map(tag => {
             return (new Suggestion(
                 tag,
                 tag + replacementSuffix,

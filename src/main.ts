@@ -4,7 +4,7 @@ import { EditorView, ViewUpdate } from "@codemirror/view";
 import { SUCCESS_NOTICE_DURATION_MS } from "./constants";
 import { CursorActivityListener } from "./cursor_activity_listener";
 import { SQLiteDatabaseService } from "./db/sqlite_database_service";
-import { editorToCodeMirrorState, posFromIndex } from "./editor_helpers";
+import { EditorUtils } from "./utils/editor_utils";
 import { LiveWordTracker } from "./live_word_tracker";
 import { markerStateField } from "./marker_state_field";
 import NLPCapitalizer from "./nlp_capitalizer";
@@ -316,7 +316,7 @@ export default class CompletrPlugin extends Plugin {
                 //Sanity check
                 if (!placeholder)
                     return;
-                const placeholderEnd = posFromIndex(editorToCodeMirrorState(placeholder.editor).doc, placeholder.marker.to);
+                const placeholderEnd = EditorUtils.posFromIndex(EditorUtils.editorToCodeMirrorState(placeholder.editor).doc, placeholder.marker.to);
 
                 if (!this.snippetManager.consumeAndGotoNextMarker(editor)) {
                     editor.setSelections([{

@@ -9,7 +9,7 @@ import {
     TFile
 } from "obsidian";
 
-import { matchWordBackwards } from "./editor_helpers";
+import { EditorUtils } from "./utils/editor_utils";
 import { SuggestionIgnorelist } from "./provider/ignorelist";
 import { Suggestion } from "./provider/provider";
 import { providerRegistry } from "./provider/provider_registry";
@@ -110,7 +110,7 @@ export default class SuggestionPopup extends EditorSuggest<Suggestion> {
         let {
             query,
             separatorChar
-        } = matchWordBackwards(editor, cursor, WordPatterns.createCharacterPredicate(), this.settings.maxLookBackDistance);
+        } = EditorUtils.matchWordBackwards(editor, cursor, WordPatterns.createCharacterPredicate(), this.settings.maxLookBackDistance);
         this.separatorChar = separatorChar;
 
         return {

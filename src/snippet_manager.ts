@@ -1,6 +1,6 @@
 import { Editor, EditorPosition } from "obsidian";
 import { Decoration } from "@codemirror/view";
-import { editorToCodeMirrorState, editorToCodeMirrorView, indexFromPos, posFromIndex } from "./editor_helpers";
+import { EditorUtils } from "./utils/editor_utils";
 import { addMark, clearMarks, markerStateField, removeMarkBySpecAttribute } from "./marker_state_field";
 import { Range } from "@codemirror/state";
 
@@ -14,7 +14,7 @@ export class PlaceholderReference {
     }
 
     get marker(): Range<Decoration> {
-        const state = editorToCodeMirrorState(this.editor);
+        const state = EditorUtils.editorToCodeMirrorState(this.editor);
         const iter = state.field(markerStateField).iter();
         while (iter.value) {
             if (iter.value.spec.reference === this) {
@@ -32,7 +32,7 @@ export class PlaceholderReference {
     }
 
     removeFromEditor(): void {
-        editorToCodeMirrorView(this.editor).dispatch({
+        EditorUtils.editorToCodeMirrorView(this.editor).dispatch({
             effects: removeMarkBySpecAttribute.of({ attribute: "reference", reference: this }),
         });
     }
@@ -58,7 +58,7 @@ export default class SnippetManager {
             colorIndex = Math.floor(Math.random() * COLORS.length);
         }
 
-        const editorView = editorToCodeMirrorView(editor);
+        const editorView = EditorUtils.editorToCodeMirrorView(editor);
         const lines = value.split("\n");
 
         for (let lineIndex = lines.length - 1; lineIndex >= 0; lineIndex--) {
@@ -88,8 +88,8 @@ export default class SnippetManager {
                     },
                     reference: reference
                 }).range(
-                    indexFromPos(editorView.state.doc, { line: start.line + lineIndex, ch: lineBaseOffset + i }),
-                    indexFromPos(editorView.state.doc, { line: start.line + lineIndex, ch: lineBaseOffset + i + 1 })
+                    EditorUtils.indexFromPos(editorView.state.doc, { line: start.line + lineIndex, ch: lineBaseOffset + i }),
+                    EditorUtils.indexFromPos(editorView.state.doc, { line: start.line + lineIndex, ch: lineBaseOffset + i + 1 })
                 );
 
                 editorView.dispatch({ effects: addMark.of(mark) });
@@ -149,7 +149,7 @@ export default class SnippetManager {
         if (!reference)
             return;
 
-        const from = posFromIndex(editorToCodeMirrorState(reference.editor).doc, reference.marker.from);
+                    const from = EditorUtils.posFromIndex(EditorUtils.editorToCodeMirrorState(reference.editor).doc, reference.marker.from);
         reference.editor.setSelection(from, { ...from, ch: from.ch + 1 });
     }
 
@@ -157,7 +157,7 @@ export default class SnippetManager {
         if (this.currentPlaceholderReferences.length === 0)
             return;
         const firstRef = this.currentPlaceholderReferences[0];
-        const view = editorToCodeMirrorView(firstRef.editor);
+        const view = EditorUtils.editorToCodeMirrorView(firstRef.editor);
         view.dispatch({
             effects: clearMarks.of(null)
         });
@@ -171,8 +171,8 @@ export default class SnippetManager {
             return null;
 
         return {
-            from: posFromIndex(editorToCodeMirrorState(reference.editor).doc, marker.from),
-            to: posFromIndex(editorToCodeMirrorState(reference.editor).doc, marker.to)
+            from: EditorUtils.posFromIndex(EditorUtils.editorToCodeMirrorState(reference.editor).doc, marker.from),
+            to: EditorUtils.posFromIndex(EditorUtils.editorToCodeMirrorState(reference.editor).doc, marker.to)
         };
     }
 

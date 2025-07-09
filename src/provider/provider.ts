@@ -1,6 +1,6 @@
 import { EditorPosition, EditorSuggestContext } from "obsidian";
 import { CompletrSettings } from "../settings";
-import { maybeLowerCase } from "../editor_helpers";
+import { TextUtils } from "../utils/text_utils";
 
 export class Suggestion {
     displayName: string;
@@ -30,7 +30,7 @@ export class Suggestion {
     }
 
     getDisplayNameLowerCase(lowerCase: boolean): string {
-        return maybeLowerCase(this.displayName, lowerCase);
+        return TextUtils.maybeLowerCase(this.displayName, lowerCase);
     }
 
     derive(options: Partial<typeof this>) {

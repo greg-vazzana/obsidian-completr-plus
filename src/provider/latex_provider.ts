@@ -1,17 +1,10 @@
 import { Suggestion, SuggestionContext, SuggestionProvider } from "./provider";
 import { CompletrSettings, intoCompletrPath } from "../settings";
-import { BlockType, getLatexBlockType, maybeLowerCase } from "../editor_helpers";
+import { BlockType, EditorUtils } from "../utils/editor_utils";
 import { Notice, Vault } from "obsidian";
 import { SuggestionIgnorelist } from "./ignorelist";
 import { ERROR_NOTICE_DURATION_MS } from "../constants";
-
-function substringUntil(str: string, delimiter: string): string {
-    let index = str.indexOf(delimiter);
-    if (index === -1)
-        return str;
-
-    return str.substring(0, index);
-}
+import { TextUtils } from "../utils/text_utils";
 
 const LATEX_COMMANDS_PATH = "latex_commands.json";
 
@@ -26,12 +19,12 @@ class LatexSuggestionProvider implements SuggestionProvider {
         let editor = context.editor;
 
         //Check if we're in a LaTeX context
-        const latexBlockType = getLatexBlockType(editor, context.start, settings.latexTriggerInCodeBlocks);
+        const latexBlockType = EditorUtils.getLatexBlockType(editor, context.start, settings.latexTriggerInCodeBlocks);
         const isSingleBlock = latexBlockType === BlockType.DOLLAR_SINGLE;
         if (!latexBlockType)
             return [];
 
-        const query = maybeLowerCase(context.query, settings.latexIgnoreCase);
+        const query = TextUtils.maybeLowerCase(context.query, settings.latexIgnoreCase);
         const isSeparatorBackslash = context.separatorChar === "\\";
 
         return this.loadedCommands.filter((s) => s.getDisplayNameLowerCase(settings.latexIgnoreCase).contains(query))
@@ -50,7 +43,7 @@ class LatexSuggestionProvider implements SuggestionProvider {
                 //This makes sure that matches like "\vee" are ranked before "\curlyvee" if the query is "\vee"
                 let val = a.priority - b.priority;
                 if (val == 0)
-                    val = substringUntil(a.displayName, "{").length - substringUntil(b.displayName, "{").length;
+                    val = TextUtils.substringUntil(a.displayName, "{").length - TextUtils.substringUntil(b.displayName, "{").length;
                 return val;
             })
             .map(obj => new Suggestion(obj.displayName, obj.replacement));

@@ -2,7 +2,7 @@ import { Editor, EditorPosition } from "obsidian";
 import nlp from "compromise";
 
 import { DEBUG_SENTENCE_MAX_LENGTH, DEBUG_FULL_TEXT_MAX_LENGTH } from "./constants";
-import { isInFrontMatterBlock } from "./editor_helpers";
+import { ValidationUtils } from "./utils/validation_utils";
 
 /**
  * Configuration options for NLP capitalization
@@ -716,7 +716,7 @@ export default class NLPCapitalizer {
      */
     private shouldCapitalizeInContext(editor: Editor, cursor: EditorPosition): boolean {
         // Don't capitalize in front matter blocks
-        if (isInFrontMatterBlock(editor, cursor)) {
+        if (ValidationUtils.isInFrontMatterBlock(editor, cursor)) {
             return false;
         }
 

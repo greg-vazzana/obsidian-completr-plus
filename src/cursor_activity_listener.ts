@@ -2,7 +2,7 @@ import { EditorPosition, MarkdownView } from "obsidian";
 import { EditorView, ViewUpdate } from "@codemirror/view";
 
 import { NLP_CAPITALIZATION_DEBOUNCE_MS } from "./constants";
-import { posFromIndex } from "./editor_helpers";
+import { EditorUtils } from "./utils/editor_utils";
 import { LiveWordTracker } from "./live_word_tracker";
 import NLPCapitalizer from "./nlp_capitalizer";
 import PeriodInserter from "./period_inserter";
@@ -54,7 +54,7 @@ export class CursorActivityListener {
         }
 
         if (update.selectionSet) {
-            const newCursor = posFromIndex(update.state.doc, update.state.selection.main.head);
+            const newCursor = EditorUtils.posFromIndex(update.state.doc, update.state.selection.main.head);
             this.handleCursorActivity(newCursor, update);
         }
     };

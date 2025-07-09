@@ -1,4 +1,5 @@
 import { Vault } from "obsidian";
+import { FileUtils } from "./utils/file_utils";
 
 export const enum WordInsertionMode {
     MATCH_CASE_REPLACE = "Match-Case & Replace",
@@ -72,5 +73,5 @@ export const DEFAULT_SETTINGS: CompletrSettings = {
 }
 
 export function intoCompletrPath(vault: Vault, ...path: string[]): string {
-    return vault.configDir + "/plugins/obsidian-completr-plus/" + path.join("/");
+    return FileUtils.intoCompletrPath(vault, ...path);
 }

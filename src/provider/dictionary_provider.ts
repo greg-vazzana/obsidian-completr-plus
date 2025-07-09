@@ -1,7 +1,7 @@
 import { CompletrSettings, WordInsertionMode } from "../settings";
 import { Suggestion, SuggestionContext, SuggestionProvider } from "./provider";
-import { maybeLowerCase } from "../editor_helpers";
-import { Word } from "../db/database";
+import { Word } from "../db/sqlite_database_service";
+import { TextUtils } from "../utils/text_utils";
 
 export abstract class DictionaryProvider implements SuggestionProvider {
     abstract readonly wordMap: Map<string, Map<string, Word>>;
@@ -14,10 +14,10 @@ export abstract class DictionaryProvider implements SuggestionProvider {
         const firstChar = context.query.charAt(0);
 
         const ignoreCase = settings.wordInsertionMode !== WordInsertionMode.MATCH_CASE_REPLACE;
-        let query = maybeLowerCase(context.query, ignoreCase);
+        let query = TextUtils.maybeLowerCase(context.query, ignoreCase);
         const ignoreDiacritics = settings.ignoreDiacriticsWhenFiltering;
         if (ignoreDiacritics)
-            query = removeDiacritics(query);
+            query = TextUtils.removeDiacritics(query);
 
         //This is an array of maps to avoid unnecessarily creating a new huge map containing all elements of both maps.
         const wordMaps = ignoreCase ?
@@ -27,9 +27,9 @@ export abstract class DictionaryProvider implements SuggestionProvider {
         if (ignoreDiacritics) {
             // This additionally adds all words that start with a diacritic, which the two maps above might not cover.
             for (let [key, value] of this.wordMap.entries()) {
-                let keyFirstChar = maybeLowerCase(key.charAt(0), ignoreCase);
+                let keyFirstChar = TextUtils.maybeLowerCase(key.charAt(0), ignoreCase);
 
-                if (removeDiacritics(keyFirstChar) === firstChar)
+                if (TextUtils.removeDiacritics(keyFirstChar) === firstChar)
                     wordMaps.push(value);
             }
         }
@@ -39,11 +39,11 @@ export abstract class DictionaryProvider implements SuggestionProvider {
 
         const result: Suggestion[] = [];
         for (let wordMap of wordMaps) {
-            filterMapIntoArray(result, wordMap.values(),
+            TextUtils.filterMapIntoArray(result, wordMap.values(),
                 wordObj => {
-                    let match = maybeLowerCase(wordObj.word, ignoreCase);
+                    let match = TextUtils.maybeLowerCase(wordObj.word, ignoreCase);
                     if (ignoreDiacritics)
-                        match = removeDiacritics(match);
+                        match = TextUtils.removeDiacritics(match);
                     return match.startsWith(query);
                 },
                 wordObj => {
@@ -68,19 +68,5 @@ export abstract class DictionaryProvider implements SuggestionProvider {
         return settings.maxSuggestions > 0 
             ? sortedResults.slice(0, settings.maxSuggestions)
             : sortedResults;
-    }
-}
-
-const DIACRITICS_REGEX = /[\u0300-\u036f]/g;
-
-function removeDiacritics(str: string): string {
-    return str.normalize("NFD").replace(DIACRITICS_REGEX, "");
-}
-
-function filterMapIntoArray<T, U>(array: Array<T>, iterable: Iterable<U>, predicate: (val: U) => boolean, map: (val: U) => T) {
-    for (let val of iterable) {
-        if (!predicate(val))
-            continue;
-        array.push(map(val));
     }
 }
