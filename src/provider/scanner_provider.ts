@@ -219,11 +219,6 @@ class ScannerSuggestionProvider extends DictionaryProvider {
         }
     }
 
-    // Keep the old addWord method for backwards compatibility, but mark as deprecated
-    private async addWord(word: string) {
-        await this.addOrIncrementWord(word);
-    }
-
     /**
      * Public method to increment word frequency in memory for live tracking
      * This is used by the live word tracker to immediately update frequencies
