@@ -65,11 +65,5 @@ export class WordPatterns {
         return null;
     }
     
-    /**
-     * Create a character predicate function for backward compatibility with existing code
-     * This can be used with matchWordBackwards and other functions that expect a character test
-     */
-    static createCharacterPredicate(): (char: string) => boolean {
-        return (char: string) => WordPatterns.isWordCharacter(char);
-    }
+
 }

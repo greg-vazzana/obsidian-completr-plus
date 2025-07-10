@@ -110,7 +110,7 @@ export default class SuggestionPopup extends EditorSuggest<Suggestion> {
         let {
             query,
             separatorChar
-        } = EditorUtils.matchWordBackwards(editor, cursor, WordPatterns.createCharacterPredicate(), this.settings.maxLookBackDistance);
+        } = EditorUtils.matchWordBackwards(editor, cursor, WordPatterns.isWordCharacter, this.settings.maxLookBackDistance);
         this.separatorChar = separatorChar;
 
         return {

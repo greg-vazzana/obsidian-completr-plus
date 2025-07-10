@@ -187,8 +187,10 @@ describe('SuggestionPopup', () => {
     });
     (SuggestionIgnorelist.has as jest.Mock).mockReturnValue(false);
     (providerRegistry.getProviders as jest.Mock).mockReturnValue([]);
-    (WordPatterns.createCharacterPredicate as jest.Mock).mockReturnValue(() => true);
-    (WordPatterns.isWordCharacter as jest.Mock).mockReturnValue(false);
+    // Mock WordPatterns.isWordCharacter to behave like the real implementation
+    (WordPatterns.isWordCharacter as jest.Mock).mockImplementation((char: string) => {
+      return /[\p{L}\d]/u.test(char);
+    });
     
     (getIcon as jest.Mock).mockReturnValue(createMockElement('svg'));
     
@@ -732,7 +734,7 @@ describe('SuggestionPopup', () => {
 
   describe('Post-Apply Processing', () => {
     beforeEach(() => {
-      mockEditor.getCursor.mockReturnValue({ line: 0, ch: 10 });
+      mockEditor.getCursor.mockReturnValue({ line: 0, ch: 17 });
       mockEditor.getLine.mockReturnValue('test line content');
     });
 
@@ -741,8 +743,8 @@ describe('SuggestionPopup', () => {
       
       popup.postApplySelectedItem(mockEditor);
       
-      expect(mockEditor.replaceRange).toHaveBeenCalledWith(' ', { line: 0, ch: 10 });
-      expect(mockEditor.setCursor).toHaveBeenCalledWith({ line: 0, ch: 11 });
+      expect(mockEditor.replaceRange).toHaveBeenCalledWith(' ', { line: 0, ch: 17 });
+      expect(mockEditor.setCursor).toHaveBeenCalledWith({ line: 0, ch: 18 });
     });
 
     it('should not add space when disabled', () => {

@@ -356,40 +356,7 @@ describe('WordPatterns', () => {
     });
   });
 
-  describe('createCharacterPredicate', () => {
-    it('should return a function', () => {
-      const predicate = WordPatterns.createCharacterPredicate();
-      expect(typeof predicate).toBe('function');
-    });
 
-    it('should return predicate that works like isWordCharacter', () => {
-      const predicate = WordPatterns.createCharacterPredicate();
-      
-      expect(predicate('a')).toBe(true);
-      expect(predicate('Z')).toBe(true);
-      expect(predicate('5')).toBe(true);
-      expect(predicate('é')).toBe(true);
-      
-      expect(predicate('-')).toBe(false);
-      expect(predicate("'")).toBe(false);
-      expect(predicate('_')).toBe(false);
-      expect(predicate(' ')).toBe(false);
-      expect(predicate('.')).toBe(false);
-    });
-
-    it('should handle empty string', () => {
-      const predicate = WordPatterns.createCharacterPredicate();
-      expect(predicate('')).toBe(false);
-    });
-
-    it('should work with longer strings by testing first character', () => {
-      const predicate = WordPatterns.createCharacterPredicate();
-      
-      expect(predicate('hello')).toBe(true);
-      expect(predicate('123')).toBe(true);
-      expect(predicate('---')).toBe(false);
-    });
-  });
 
   describe('integration tests', () => {
     it('should work consistently across methods', () => {
