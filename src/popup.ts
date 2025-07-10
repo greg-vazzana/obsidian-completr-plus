@@ -170,7 +170,7 @@ export default class SuggestionPopup extends EditorSuggest<Suggestion> {
         });
 
         //Check if suggestion is a snippet
-        if (replacement.contains("#") || replacement.contains("~")) {
+        if (replacement.includes("#") || replacement.includes("~")) {
             if (!this.disableSnippets) {
                 this.snippetManager.handleSnippet(replacement, start, this.context.editor);
             } else {
