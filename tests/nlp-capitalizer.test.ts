@@ -154,6 +154,8 @@ describe('NLPCapitalizer', () => {
       expect(mockEditor.getLine(0)).toBe('> Hello world');
     });
 
+
+
     it('should handle multiple markdown prefixes', () => {
       mockEditor = createMockEditor(['## - hello world']);
       const cursor: EditorPosition = { line: 0, ch: 11 };
@@ -197,6 +199,51 @@ describe('NLPCapitalizer', () => {
       capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
       
       expect(mockEditor.getLine(0)).toBe('# ');
+    });
+
+    it('should capitalize first word after indented list marker with tab', () => {
+      mockEditor = createMockEditor(['\t- line 2']); // Tab character followed by dash and space
+      const cursor: EditorPosition = { line: 0, ch: 8 }; // Position after "line 2"
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBe('\t- Line 2');
+    });
+
+    it('should capitalize first word after indented list marker with spaces', () => {
+      mockEditor = createMockEditor(['    - line 2']); // 4 spaces followed by dash and space
+      const cursor: EditorPosition = { line: 0, ch: 10 }; // Position after "line 2"
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBe('    - Line 2');
+    });
+
+    it('should capitalize first word after indented numbered list', () => {
+      mockEditor = createMockEditor(['\t1. line 2']); // Tab character followed by number and period
+      const cursor: EditorPosition = { line: 0, ch: 9 }; // Position after "line 2"
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBe('\t1. Line 2');
+    });
+
+    it('should capitalize first word after indented blockquote', () => {
+      mockEditor = createMockEditor(['\t> line 2']); // Tab character followed by blockquote
+      const cursor: EditorPosition = { line: 0, ch: 8 }; // Position after "line 2"
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBe('\t> Line 2');
+    });
+
+    it('should still treat actual indented code blocks as code blocks', () => {
+      mockEditor = createMockEditor(['\tthis is code']); // Tab character followed by code (no markdown syntax)
+      const cursor: EditorPosition = { line: 0, ch: 10 }; // Position after "this is code"
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBe('\tthis is code'); // Should not be capitalized
     });
   });
 
@@ -829,6 +876,886 @@ describe('NLPCapitalizer', () => {
       capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
       
       expect(mockEditor.getLine(0)).toBeDefined();
+    });
+  });
+
+  describe('Debug Mode Testing', () => {
+    beforeEach(() => {
+      capitalizer = new NLPCapitalizer({ 
+        capitalizeLines: true, 
+        capitalizeSentences: true,
+        debug: true 
+      });
+    });
+
+    it('should log debug information during line capitalization', () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+      
+      mockEditor = createMockEditor(['hello world']);
+      const cursor: EditorPosition = { line: 0, ch: 5 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(consoleSpy).toHaveBeenCalledWith('NLPCapitalizer: attemptCapitalization called', { cursor, trigger: ' ' });
+      expect(consoleSpy).toHaveBeenCalledWith('NLPCapitalizer: Line capitalization applied', { 
+        original: 'hello', 
+        capitalized: 'Hello' 
+      });
+      
+      consoleSpy.mockRestore();
+    });
+
+    it('should log debug information during sentence capitalization', () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+      
+      mockEditor = createMockEditor(['First sentence. second sentence.']);
+      const cursor: EditorPosition = { line: 0, ch: 25 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(consoleSpy).toHaveBeenCalledWith('NLPCapitalizer: attemptCapitalization called', { cursor, trigger: ' ' });
+      
+      consoleSpy.mockRestore();
+    });
+
+    it('should handle debug mode with errors gracefully', () => {
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      
+      // Create a scenario that might cause an error
+      mockEditor = createMockEditor(['']);
+      const cursor: EditorPosition = { line: 0, ch: 0 };
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      }).not.toThrow();
+      
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe('Advanced Configuration Testing', () => {
+    it('should handle configuration updates during runtime', () => {
+      const initialConfig = { capitalizeLines: true, capitalizeSentences: false };
+      capitalizer = new NLPCapitalizer(initialConfig);
+      
+      mockEditor = createMockEditor(['hello world']);
+      const cursor: EditorPosition = { line: 0, ch: 5 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      expect(mockEditor.getLine(0)).toBe('Hello world');
+      
+      // Update configuration
+      capitalizer.updateConfig({ capitalizeLines: false, capitalizeSentences: true });
+      
+      // Reset editor and test again
+      mockEditor = createMockEditor(['hello world']);
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      expect(mockEditor.getLine(0)).toBe('hello world'); // Should not capitalize line now
+    });
+
+    it('should handle all configuration combinations', () => {
+      const configs = [
+        { capitalizeLines: true, capitalizeSentences: true, preserveMixedCase: true },
+        { capitalizeLines: true, capitalizeSentences: false, preserveMixedCase: false },
+        { capitalizeLines: false, capitalizeSentences: true, preserveMixedCase: true },
+        { capitalizeLines: false, capitalizeSentences: false, preserveMixedCase: false }
+      ];
+      
+      configs.forEach(config => {
+        capitalizer = new NLPCapitalizer(config);
+        
+        mockEditor = createMockEditor(['hello world. iPhone test.']);
+        const cursor: EditorPosition = { line: 0, ch: 10 };
+        
+        expect(() => {
+          capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+        }).not.toThrow();
+      });
+    });
+  });
+
+  describe('Performance and Edge Cases', () => {
+    it('should handle very long text efficiently', () => {
+      const longText = Array.from({ length: 100 }, (_, i) => 
+        `This is sentence number ${i + 1} in a very long text. It continues on and on.`
+      );
+      mockEditor = createMockEditor(longText);
+      const cursor: EditorPosition = { line: 50, ch: 30 };
+      
+      const startTime = Date.now();
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      const endTime = Date.now();
+      
+      expect(endTime - startTime).toBeLessThan(1000); // Should complete within 1 second
+      expect(mockEditor.getLine(50)).toBeDefined();
+    });
+
+    it('should handle text with only punctuation', () => {
+      mockEditor = createMockEditor(['...!!! ??? ...']);
+      const cursor: EditorPosition = { line: 0, ch: 7 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBe('...!!! ??? ...');
+    });
+
+    it('should handle text with only whitespace', () => {
+      mockEditor = createMockEditor(['   \t  \n  ']);
+      const cursor: EditorPosition = { line: 0, ch: 4 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBe('   \t  \n  ');
+    });
+
+    it('should handle cursor at edge positions', () => {
+      mockEditor = createMockEditor(['hello world']);
+      
+      // Test at position 0
+      let cursor: EditorPosition = { line: 0, ch: 0 };
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      // Test at end of line
+      cursor = { line: 0, ch: 11 };
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBeDefined();
+    });
+
+    it('should handle multi-byte unicode characters', () => {
+      mockEditor = createMockEditor(['émojis 😀 and café']);
+      const cursor: EditorPosition = { line: 0, ch: 10 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBe('Émojis 😀 and café');
+    });
+
+    it('should handle words with mixed unicode', () => {
+      mockEditor = createMockEditor(['naïve résumé']);
+      const cursor: EditorPosition = { line: 0, ch: 5 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBe('Naïve résumé');
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('should handle invalid cursor positions gracefully', () => {
+      mockEditor = createMockEditor(['hello world']);
+      const cursor: EditorPosition = { line: 10, ch: 5 }; // Invalid line
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      }).not.toThrow();
+    });
+
+    it('should handle negative cursor positions', () => {
+      mockEditor = createMockEditor(['hello world']);
+      const cursor: EditorPosition = { line: -1, ch: -1 };
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      }).not.toThrow();
+    });
+
+    it('should handle empty trigger characters', () => {
+      mockEditor = createMockEditor(['hello world']);
+      const cursor: EditorPosition = { line: 0, ch: 5 };
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, '');
+      }).not.toThrow();
+    });
+
+    it('should handle null or undefined triggers', () => {
+      mockEditor = createMockEditor(['hello world']);
+      const cursor: EditorPosition = { line: 0, ch: 5 };
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, null as any);
+      }).not.toThrow();
+    });
+
+    it('should handle editor with no lines', () => {
+      mockEditor = createMockEditor([]);
+      const cursor: EditorPosition = { line: 0, ch: 0 };
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      }).not.toThrow();
+    });
+
+    it('should handle malformed NLP input gracefully', () => {
+      // Create a scenario that might cause NLP parsing issues
+      const malformedText = ['\\n\\t\\r\\0\\x1F'];
+      mockEditor = createMockEditor(malformedText);
+      const cursor: EditorPosition = { line: 0, ch: 5 };
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      }).not.toThrow();
+    });
+  });
+
+  describe('Debug Mode Testing', () => {
+    beforeEach(() => {
+      capitalizer = new NLPCapitalizer({ 
+        capitalizeLines: true, 
+        capitalizeSentences: true,
+        debug: true 
+      });
+    });
+
+    it('should log debug information during line capitalization', () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+      
+      mockEditor = createMockEditor(['hello world']);
+      const cursor: EditorPosition = { line: 0, ch: 5 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(consoleSpy).toHaveBeenCalledWith('NLPCapitalizer: attemptCapitalization called', { cursor, trigger: ' ' });
+      expect(consoleSpy).toHaveBeenCalledWith('NLPCapitalizer: Line capitalization applied', { 
+        original: 'hello', 
+        capitalized: 'Hello' 
+      });
+      
+      consoleSpy.mockRestore();
+    });
+
+    it('should log debug information during sentence capitalization', () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+      
+      mockEditor = createMockEditor(['First sentence. second sentence.']);
+      const cursor: EditorPosition = { line: 0, ch: 25 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(consoleSpy).toHaveBeenCalledWith('NLPCapitalizer: attemptCapitalization called', { cursor, trigger: ' ' });
+      
+      consoleSpy.mockRestore();
+    });
+
+    it('should handle debug mode with errors gracefully', () => {
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      
+      // Create a scenario that might cause an error
+      mockEditor = createMockEditor(['']);
+      const cursor: EditorPosition = { line: 0, ch: 0 };
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      }).not.toThrow();
+      
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe('Advanced Configuration Testing', () => {
+    it('should handle configuration updates during runtime', () => {
+      const initialConfig = { capitalizeLines: true, capitalizeSentences: false };
+      capitalizer = new NLPCapitalizer(initialConfig);
+      
+      mockEditor = createMockEditor(['hello world']);
+      const cursor: EditorPosition = { line: 0, ch: 5 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      expect(mockEditor.getLine(0)).toBe('Hello world');
+      
+      // Update configuration
+      capitalizer.updateConfig({ capitalizeLines: false, capitalizeSentences: true });
+      
+      // Reset editor and test again
+      mockEditor = createMockEditor(['hello world']);
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      expect(mockEditor.getLine(0)).toBe('hello world'); // Should not capitalize line now
+    });
+
+    it('should handle all configuration combinations', () => {
+      const configs = [
+        { capitalizeLines: true, capitalizeSentences: true, preserveMixedCase: true },
+        { capitalizeLines: true, capitalizeSentences: false, preserveMixedCase: false },
+        { capitalizeLines: false, capitalizeSentences: true, preserveMixedCase: true },
+        { capitalizeLines: false, capitalizeSentences: false, preserveMixedCase: false }
+      ];
+      
+      configs.forEach(config => {
+        capitalizer = new NLPCapitalizer(config);
+        
+        mockEditor = createMockEditor(['hello world. iPhone test.']);
+        const cursor: EditorPosition = { line: 0, ch: 10 };
+        
+        expect(() => {
+          capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+        }).not.toThrow();
+      });
+    });
+  });
+
+  describe('Performance and Edge Cases', () => {
+    it('should handle very long text efficiently', () => {
+      const longText = Array.from({ length: 100 }, (_, i) => 
+        `This is sentence number ${i + 1} in a very long text. It continues on and on.`
+      );
+      mockEditor = createMockEditor(longText);
+      const cursor: EditorPosition = { line: 50, ch: 30 };
+      
+      const startTime = Date.now();
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      const endTime = Date.now();
+      
+      expect(endTime - startTime).toBeLessThan(1000); // Should complete within 1 second
+      expect(mockEditor.getLine(50)).toBeDefined();
+    });
+
+    it('should handle text with only punctuation', () => {
+      mockEditor = createMockEditor(['...!!! ??? ...']);
+      const cursor: EditorPosition = { line: 0, ch: 7 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBe('...!!! ??? ...');
+    });
+
+    it('should handle text with only whitespace', () => {
+      mockEditor = createMockEditor(['   \t  \n  ']);
+      const cursor: EditorPosition = { line: 0, ch: 4 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBe('   \t  \n  ');
+    });
+
+    it('should handle cursor at edge positions', () => {
+      mockEditor = createMockEditor(['hello world']);
+      
+      // Test at position 0
+      let cursor: EditorPosition = { line: 0, ch: 0 };
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      // Test at end of line
+      cursor = { line: 0, ch: 11 };
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBeDefined();
+    });
+
+    it('should handle multi-byte unicode characters', () => {
+      mockEditor = createMockEditor(['émojis 😀 and café']);
+      const cursor: EditorPosition = { line: 0, ch: 10 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBe('Émojis 😀 and café');
+    });
+
+    it('should handle words with mixed unicode', () => {
+      mockEditor = createMockEditor(['naïve résumé']);
+      const cursor: EditorPosition = { line: 0, ch: 5 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBe('Naïve résumé');
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('should handle invalid cursor positions gracefully', () => {
+      mockEditor = createMockEditor(['hello world']);
+      const cursor: EditorPosition = { line: 10, ch: 5 }; // Invalid line
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      }).not.toThrow();
+    });
+
+    it('should handle negative cursor positions', () => {
+      mockEditor = createMockEditor(['hello world']);
+      const cursor: EditorPosition = { line: -1, ch: -1 };
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      }).not.toThrow();
+    });
+
+    it('should handle empty trigger characters', () => {
+      mockEditor = createMockEditor(['hello world']);
+      const cursor: EditorPosition = { line: 0, ch: 5 };
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, '');
+      }).not.toThrow();
+    });
+
+    it('should handle null or undefined triggers', () => {
+      mockEditor = createMockEditor(['hello world']);
+      const cursor: EditorPosition = { line: 0, ch: 5 };
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, null as any);
+      }).not.toThrow();
+    });
+
+    it('should handle editor with no lines', () => {
+      mockEditor = createMockEditor([]);
+      const cursor: EditorPosition = { line: 0, ch: 0 };
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      }).not.toThrow();
+    });
+
+    it('should handle malformed NLP input gracefully', () => {
+      // Create a scenario that might cause NLP parsing issues
+      const malformedText = ['\\n\\t\\r\\0\\x1F'];
+      mockEditor = createMockEditor(malformedText);
+      const cursor: EditorPosition = { line: 0, ch: 5 };
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      }).not.toThrow();
+    });
+  });
+
+  describe('Debug Mode Testing', () => {
+    beforeEach(() => {
+      capitalizer = new NLPCapitalizer({ 
+        capitalizeLines: true, 
+        capitalizeSentences: true,
+        debug: true 
+      });
+    });
+
+    it('should log debug information during line capitalization', () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+      
+      mockEditor = createMockEditor(['hello world']);
+      const cursor: EditorPosition = { line: 0, ch: 5 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(consoleSpy).toHaveBeenCalledWith('NLPCapitalizer: attemptCapitalization called', { cursor, trigger: ' ' });
+      expect(consoleSpy).toHaveBeenCalledWith('NLPCapitalizer: Line capitalization applied', { 
+        original: 'hello', 
+        capitalized: 'Hello' 
+      });
+      
+      consoleSpy.mockRestore();
+    });
+
+    it('should log debug information during sentence capitalization', () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+      
+      mockEditor = createMockEditor(['First sentence. second sentence.']);
+      const cursor: EditorPosition = { line: 0, ch: 25 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(consoleSpy).toHaveBeenCalledWith('NLPCapitalizer: attemptCapitalization called', { cursor, trigger: ' ' });
+      
+      consoleSpy.mockRestore();
+    });
+
+    it('should handle debug mode with errors gracefully', () => {
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      
+      // Create a scenario that might cause an error
+      mockEditor = createMockEditor(['']);
+      const cursor: EditorPosition = { line: 0, ch: 0 };
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      }).not.toThrow();
+      
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe('Advanced Configuration Testing', () => {
+    it('should handle configuration updates during runtime', () => {
+      const initialConfig = { capitalizeLines: true, capitalizeSentences: false };
+      capitalizer = new NLPCapitalizer(initialConfig);
+      
+      mockEditor = createMockEditor(['hello world']);
+      const cursor: EditorPosition = { line: 0, ch: 5 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      expect(mockEditor.getLine(0)).toBe('Hello world');
+      
+      // Update configuration
+      capitalizer.updateConfig({ capitalizeLines: false, capitalizeSentences: true });
+      
+      // Reset editor and test again
+      mockEditor = createMockEditor(['hello world']);
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      expect(mockEditor.getLine(0)).toBe('hello world'); // Should not capitalize line now
+    });
+
+    it('should handle all configuration combinations', () => {
+      const configs = [
+        { capitalizeLines: true, capitalizeSentences: true, preserveMixedCase: true },
+        { capitalizeLines: true, capitalizeSentences: false, preserveMixedCase: false },
+        { capitalizeLines: false, capitalizeSentences: true, preserveMixedCase: true },
+        { capitalizeLines: false, capitalizeSentences: false, preserveMixedCase: false }
+      ];
+      
+      configs.forEach(config => {
+        capitalizer = new NLPCapitalizer(config);
+        
+        mockEditor = createMockEditor(['hello world. iPhone test.']);
+        const cursor: EditorPosition = { line: 0, ch: 10 };
+        
+        expect(() => {
+          capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+        }).not.toThrow();
+      });
+    });
+  });
+
+  describe('Performance and Edge Cases', () => {
+    it('should handle very long text efficiently', () => {
+      const longText = Array.from({ length: 100 }, (_, i) => 
+        `This is sentence number ${i + 1} in a very long text. It continues on and on.`
+      );
+      mockEditor = createMockEditor(longText);
+      const cursor: EditorPosition = { line: 50, ch: 30 };
+      
+      const startTime = Date.now();
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      const endTime = Date.now();
+      
+      expect(endTime - startTime).toBeLessThan(1000); // Should complete within 1 second
+      expect(mockEditor.getLine(50)).toBeDefined();
+    });
+
+    it('should handle text with only punctuation', () => {
+      mockEditor = createMockEditor(['...!!! ??? ...']);
+      const cursor: EditorPosition = { line: 0, ch: 7 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBe('...!!! ??? ...');
+    });
+
+    it('should handle text with only whitespace', () => {
+      mockEditor = createMockEditor(['   \t  \n  ']);
+      const cursor: EditorPosition = { line: 0, ch: 4 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBe('   \t  \n  ');
+    });
+
+    it('should handle cursor at edge positions', () => {
+      mockEditor = createMockEditor(['hello world']);
+      
+      // Test at position 0
+      let cursor: EditorPosition = { line: 0, ch: 0 };
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      // Test at end of line
+      cursor = { line: 0, ch: 11 };
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBeDefined();
+    });
+
+    it('should handle multi-byte unicode characters', () => {
+      mockEditor = createMockEditor(['émojis 😀 and café']);
+      const cursor: EditorPosition = { line: 0, ch: 10 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBe('Émojis 😀 and café');
+    });
+
+    it('should handle words with mixed unicode', () => {
+      mockEditor = createMockEditor(['naïve résumé']);
+      const cursor: EditorPosition = { line: 0, ch: 5 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBe('Naïve résumé');
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('should handle invalid cursor positions gracefully', () => {
+      mockEditor = createMockEditor(['hello world']);
+      const cursor: EditorPosition = { line: 10, ch: 5 }; // Invalid line
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      }).not.toThrow();
+    });
+
+    it('should handle negative cursor positions', () => {
+      mockEditor = createMockEditor(['hello world']);
+      const cursor: EditorPosition = { line: -1, ch: -1 };
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      }).not.toThrow();
+    });
+
+    it('should handle empty trigger characters', () => {
+      mockEditor = createMockEditor(['hello world']);
+      const cursor: EditorPosition = { line: 0, ch: 5 };
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, '');
+      }).not.toThrow();
+    });
+
+    it('should handle null or undefined triggers', () => {
+      mockEditor = createMockEditor(['hello world']);
+      const cursor: EditorPosition = { line: 0, ch: 5 };
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, null as any);
+      }).not.toThrow();
+    });
+
+    it('should handle editor with no lines', () => {
+      mockEditor = createMockEditor([]);
+      const cursor: EditorPosition = { line: 0, ch: 0 };
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      }).not.toThrow();
+    });
+
+    it('should handle malformed NLP input gracefully', () => {
+      // Create a scenario that might cause NLP parsing issues
+      const malformedText = ['\\n\\t\\r\\0\\x1F'];
+      mockEditor = createMockEditor(malformedText);
+      const cursor: EditorPosition = { line: 0, ch: 5 };
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      }).not.toThrow();
+    });
+  });
+
+  describe('Debug Mode Testing', () => {
+    beforeEach(() => {
+      capitalizer = new NLPCapitalizer({ 
+        capitalizeLines: true, 
+        capitalizeSentences: true,
+        debug: true 
+      });
+    });
+
+    it('should log debug information during line capitalization', () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+      
+      mockEditor = createMockEditor(['hello world']);
+      const cursor: EditorPosition = { line: 0, ch: 5 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(consoleSpy).toHaveBeenCalledWith('NLPCapitalizer: attemptCapitalization called', { cursor, trigger: ' ' });
+      expect(consoleSpy).toHaveBeenCalledWith('NLPCapitalizer: Line capitalization applied', { 
+        original: 'hello', 
+        capitalized: 'Hello' 
+      });
+      
+      consoleSpy.mockRestore();
+    });
+
+    it('should log debug information during sentence capitalization', () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+      
+      mockEditor = createMockEditor(['First sentence. second sentence.']);
+      const cursor: EditorPosition = { line: 0, ch: 25 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(consoleSpy).toHaveBeenCalledWith('NLPCapitalizer: attemptCapitalization called', { cursor, trigger: ' ' });
+      
+      consoleSpy.mockRestore();
+    });
+
+    it('should handle debug mode with errors gracefully', () => {
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      
+      // Create a scenario that might cause an error
+      mockEditor = createMockEditor(['']);
+      const cursor: EditorPosition = { line: 0, ch: 0 };
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      }).not.toThrow();
+      
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe('Advanced Configuration Testing', () => {
+    it('should handle configuration updates during runtime', () => {
+      const initialConfig = { capitalizeLines: true, capitalizeSentences: false };
+      capitalizer = new NLPCapitalizer(initialConfig);
+      
+      mockEditor = createMockEditor(['hello world']);
+      const cursor: EditorPosition = { line: 0, ch: 5 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      expect(mockEditor.getLine(0)).toBe('Hello world');
+      
+      // Update configuration
+      capitalizer.updateConfig({ capitalizeLines: false, capitalizeSentences: true });
+      
+      // Reset editor and test again
+      mockEditor = createMockEditor(['hello world']);
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      expect(mockEditor.getLine(0)).toBe('hello world'); // Should not capitalize line now
+    });
+
+    it('should handle all configuration combinations', () => {
+      const configs = [
+        { capitalizeLines: true, capitalizeSentences: true, preserveMixedCase: true },
+        { capitalizeLines: true, capitalizeSentences: false, preserveMixedCase: false },
+        { capitalizeLines: false, capitalizeSentences: true, preserveMixedCase: true },
+        { capitalizeLines: false, capitalizeSentences: false, preserveMixedCase: false }
+      ];
+      
+      configs.forEach(config => {
+        capitalizer = new NLPCapitalizer(config);
+        
+        mockEditor = createMockEditor(['hello world. iPhone test.']);
+        const cursor: EditorPosition = { line: 0, ch: 10 };
+        
+        expect(() => {
+          capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+        }).not.toThrow();
+      });
+    });
+  });
+
+  describe('Performance and Edge Cases', () => {
+    it('should handle very long text efficiently', () => {
+      const longText = Array.from({ length: 100 }, (_, i) => 
+        `This is sentence number ${i + 1} in a very long text. It continues on and on.`
+      );
+      mockEditor = createMockEditor(longText);
+      const cursor: EditorPosition = { line: 50, ch: 30 };
+      
+      const startTime = Date.now();
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      const endTime = Date.now();
+      
+      expect(endTime - startTime).toBeLessThan(1000); // Should complete within 1 second
+      expect(mockEditor.getLine(50)).toBeDefined();
+    });
+
+    it('should handle text with only punctuation', () => {
+      mockEditor = createMockEditor(['...!!! ??? ...']);
+      const cursor: EditorPosition = { line: 0, ch: 7 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBe('...!!! ??? ...');
+    });
+
+    it('should handle text with only whitespace', () => {
+      mockEditor = createMockEditor(['   \t  \n  ']);
+      const cursor: EditorPosition = { line: 0, ch: 4 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBe('   \t  \n  ');
+    });
+
+    it('should handle cursor at edge positions', () => {
+      mockEditor = createMockEditor(['hello world']);
+      
+      // Test at position 0
+      let cursor: EditorPosition = { line: 0, ch: 0 };
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      // Test at end of line
+      cursor = { line: 0, ch: 11 };
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBeDefined();
+    });
+
+    it('should handle multi-byte unicode characters', () => {
+      mockEditor = createMockEditor(['émojis 😀 and café']);
+      const cursor: EditorPosition = { line: 0, ch: 10 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBe('Émojis 😀 and café');
+    });
+
+    it('should handle words with mixed unicode', () => {
+      mockEditor = createMockEditor(['naïve résumé']);
+      const cursor: EditorPosition = { line: 0, ch: 5 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBe('Naïve résumé');
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('should handle invalid cursor positions gracefully', () => {
+      mockEditor = createMockEditor(['hello world']);
+      const cursor: EditorPosition = { line: 10, ch: 5 }; // Invalid line
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      }).not.toThrow();
+    });
+
+    it('should handle negative cursor positions', () => {
+      mockEditor = createMockEditor(['hello world']);
+      const cursor: EditorPosition = { line: -1, ch: -1 };
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      }).not.toThrow();
+    });
+
+    it('should handle empty trigger characters', () => {
+      mockEditor = createMockEditor(['hello world']);
+      const cursor: EditorPosition = { line: 0, ch: 5 };
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, '');
+      }).not.toThrow();
+    });
+
+    it('should handle null or undefined triggers', () => {
+      mockEditor = createMockEditor(['hello world']);
+      const cursor: EditorPosition = { line: 0, ch: 5 };
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, null as any);
+      }).not.toThrow();
+    });
+
+    it('should handle editor with no lines', () => {
+      mockEditor = createMockEditor([]);
+      const cursor: EditorPosition = { line: 0, ch: 0 };
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      }).not.toThrow();
+    });
+
+    it('should handle malformed NLP input gracefully', () => {
+      // Create a scenario that might cause NLP parsing issues
+      const malformedText = ['\\n\\t\\r\\0\\x1F'];
+      mockEditor = createMockEditor(malformedText);
+      const cursor: EditorPosition = { line: 0, ch: 5 };
+      
+      expect(() => {
+        capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      }).not.toThrow();
     });
   });
 

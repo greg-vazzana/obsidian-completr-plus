@@ -836,8 +836,14 @@ export default class NLPCapitalizer {
         }
 
         // Check for indented code blocks (4+ spaces or 1+ tabs at start)
+        // But exclude lines that contain markdown syntax (lists, headings, blockquotes, etc.)
         const currentLine = editor.getLine(cursor.line);
         if (currentLine.match(/^(\s{4,}|\t+)/)) {
+            // Don't treat lines with markdown syntax as code blocks
+            const contentAfterIndent = currentLine.replace(/^(\s{4,}|\t+)/, '');
+            if (contentAfterIndent.match(/^([-*+]\s+|\d+\.\s+|#{1,6}\s+|>\s*)/)) {
+                return false; // This is markdown syntax, not code
+            }
             return true;
         }
 
