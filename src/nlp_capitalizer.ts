@@ -113,6 +113,17 @@ export default class NLPCapitalizer {
 
         const { word, startIndex, endIndex } = firstWordInfo;
 
+        // Check if this word is part of an abbreviation at the beginning of the line
+        if (this.isWordPartOfAbbreviation(line, word, startIndex)) {
+            if (this.config.debug) {
+                console.log('NLPCapitalizer: Skipping line capitalization - word is part of abbreviation', { 
+                    word, 
+                    line: line.substring(startIndex, startIndex + 10) + '...' 
+                });
+            }
+            return false;
+        }
+
         // Check if this word should be capitalized
         if (!this.shouldCapitalizeWord(word)) {
             return false;
@@ -299,7 +310,69 @@ export default class NLPCapitalizer {
     }
 
     /**
-     * Finds the last sentence boundary (punctuation) in the line
+     * Checks if a period at the given position is part of a common abbreviation
+     */
+    private isPeriodInAbbreviation(text: string, periodIndex: number): boolean {
+        // Common abbreviations that end with periods (case-sensitive)
+        const abbreviations = [
+            'e.g.', 'i.e.', 'etc.', 'vs.', 'cf.', 'et al.', 'viz.',
+            'Dr.', 'Mr.', 'Mrs.', 'Ms.', 'Prof.', 'St.', 'Ave.', 'Blvd.',
+            'Inc.', 'Corp.', 'Ltd.', 'Co.', 'LLC.', 'Jan.', 'Feb.', 'Mar.',
+            'Apr.', 'May.', 'Jun.', 'Jul.', 'Aug.', 'Sep.', 'Oct.', 'Nov.', 'Dec.'
+        ];
+
+        // Check if the period is preceded by text that matches any abbreviation (case-sensitive)
+        for (const abbr of abbreviations) {
+            const startPos = periodIndex - abbr.length + 1;
+            if (startPos >= 0) {
+                const candidate = text.substring(startPos, periodIndex + 1);
+                if (candidate === abbr) {
+                    return true;
+                }
+            }
+        }
+
+        // Additional check for single-letter abbreviations (like "a.", "b.", etc.)
+        if (periodIndex >= 1) {
+            const prevChar = text[periodIndex - 1];
+            const prevPrevChar = periodIndex >= 2 ? text[periodIndex - 2] : null;
+            
+            // Check for single letter abbreviations (a., b., etc.)
+            if (/[a-zA-Z]/.test(prevChar) && (prevPrevChar === null || /\s/.test(prevPrevChar))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Checks if a word at the beginning of a line is part of an abbreviation
+     */
+    private isWordPartOfAbbreviation(line: string, word: string, startIndex: number): boolean {
+        // Check if the word is followed by a period and potentially more text that forms an abbreviation
+        const remainingText = line.substring(startIndex);
+        
+        // Common abbreviations that might start with this word
+        const abbreviations = [
+            'e.g.', 'i.e.', 'etc.', 'vs.', 'cf.', 'et al.', 'viz.',
+            'Dr.', 'Mr.', 'Mrs.', 'Ms.', 'Prof.', 'St.', 'Ave.', 'Blvd.',
+            'Inc.', 'Corp.', 'Ltd.', 'Co.', 'LLC.', 'Jan.', 'Feb.', 'Mar.',
+            'Apr.', 'May.', 'Jun.', 'Jul.', 'Aug.', 'Sep.', 'Oct.', 'Nov.', 'Dec.'
+        ];
+
+        // Check if any abbreviation starts at this position
+        for (const abbr of abbreviations) {
+            if (remainingText.startsWith(abbr)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Finds the last sentence boundary in a line, excluding periods in abbreviations
      */
     private findLastSentenceBoundary(line: string): number | null {
         const sentenceEndings = /[.!?]/g;
@@ -307,7 +380,15 @@ export default class NLPCapitalizer {
         let match;
         
         while ((match = sentenceEndings.exec(line)) !== null) {
-            lastPunctIndex = match.index;
+            const punctIndex = match.index;
+            const punctChar = match[0];
+            
+            // For periods, check if it's part of an abbreviation
+            if (punctChar === '.' && this.isPeriodInAbbreviation(line, punctIndex)) {
+                continue; // Skip this period as it's part of an abbreviation
+            }
+            
+            lastPunctIndex = punctIndex;
         }
         
         return lastPunctIndex === -1 ? null : lastPunctIndex;
@@ -431,7 +512,7 @@ export default class NLPCapitalizer {
     }
 
     /**
-     * Finds all sentence boundaries in a line
+     * Finds all sentence boundaries in a line, excluding periods in abbreviations
      */
     private findAllSentenceBoundaries(line: string): number[] {
         const sentenceEndings = /[.!?]/g;
@@ -439,7 +520,15 @@ export default class NLPCapitalizer {
         let match;
         
         while ((match = sentenceEndings.exec(line)) !== null) {
-            boundaries.push(match.index);
+            const punctIndex = match.index;
+            const punctChar = match[0];
+            
+            // For periods, check if it's part of an abbreviation
+            if (punctChar === '.' && this.isPeriodInAbbreviation(line, punctIndex)) {
+                continue; // Skip this period as it's part of an abbreviation
+            }
+            
+            boundaries.push(punctIndex);
         }
         
         if (this.config.debug) {
