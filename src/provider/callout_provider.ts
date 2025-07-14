@@ -3,7 +3,8 @@ import { getApi } from "obsidian-callout-manager";
 
 import { ERROR_NOTICE_DURATION_MS, CONFIG_FILES, PATTERNS } from "../constants";
 import CompletrPlugin from "../main";
-import { CalloutProviderSource, CompletrSettings, intoCompletrPath } from "../settings";
+import { CalloutProviderSource, CompletrSettings } from "../settings";
+import { FileUtils } from "../utils/file_utils";
 import { SuggestionIgnorelist } from "./ignorelist";
 import { Suggestion, SuggestionContext, SuggestionProvider } from "./provider";
 
@@ -92,7 +93,7 @@ class CalloutSuggestionProvider implements SuggestionProvider {
     }
 
     protected async loadSuggestionsUsingCompletr(vault: Vault) {
-        const path = intoCompletrPath(vault, CONFIG_FILES.CALLOUT_SUGGESTIONS);
+        const path = FileUtils.intoCompletrPath(vault, CONFIG_FILES.CALLOUT_SUGGESTIONS);
 
         if (!(await vault.adapter.exists(path))) {
             const defaultCommands = generateDefaulCalloutOptions();

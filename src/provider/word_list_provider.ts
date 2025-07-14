@@ -1,5 +1,6 @@
-import { CompletrSettings, intoCompletrPath } from "../settings";
+import { CompletrSettings } from "../settings";
 import { DictionaryProvider } from "./dictionary_provider";
+import { FileUtils } from "../utils/file_utils";
 import { Word } from "../db/sqlite_database_service";
 import { Vault } from "obsidian";
 import { SuggestionIgnorelist } from "./ignorelist";
@@ -167,7 +168,7 @@ class WordListSuggestionProvider extends DictionaryProvider {
             return false;
         }
 
-        const path = intoCompletrPath(vault, FOLDERS.WORD_LISTS, name);
+        const path = FileUtils.intoCompletrPath(vault, FOLDERS.WORD_LISTS, name);
         if (await vault.adapter.exists(path))
             return false;
 
@@ -176,7 +177,7 @@ class WordListSuggestionProvider extends DictionaryProvider {
     }
 
     async deleteWordList(vault: Vault, name: string): Promise<void> {
-        const path = intoCompletrPath(vault, FOLDERS.WORD_LISTS, name);
+        const path = FileUtils.intoCompletrPath(vault, FOLDERS.WORD_LISTS, name);
         
         // Delete the file if it exists
         if (await vault.adapter.exists(path)) {
@@ -199,7 +200,7 @@ class WordListSuggestionProvider extends DictionaryProvider {
      * @param vault
      */
     async getRelativeFilePaths(vault: Vault): Promise<string[]> {
-        const path = intoCompletrPath(vault, FOLDERS.WORD_LISTS);
+        const path = FileUtils.intoCompletrPath(vault, FOLDERS.WORD_LISTS);
         if (!(await vault.adapter.exists(path)))
             await vault.adapter.mkdir(path);
 

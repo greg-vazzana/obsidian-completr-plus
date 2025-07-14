@@ -1,6 +1,6 @@
 import { Suggestion } from "./provider";
 import { Vault } from "obsidian";
-import { intoCompletrPath } from "../settings";
+import { FileUtils } from "../utils/file_utils";
 import { CONFIG_FILES, PATTERNS } from "../constants";
 
 export const SuggestionIgnorelist = new class {
@@ -41,11 +41,11 @@ export const SuggestionIgnorelist = new class {
     }
 
     async saveData(vault: Vault) {
-        await vault.adapter.write(intoCompletrPath(vault, CONFIG_FILES.IGNORELIST), [...this.ignorelist].join("\n"));
+        await vault.adapter.write(FileUtils.intoCompletrPath(vault, CONFIG_FILES.IGNORELIST), [...this.ignorelist].join("\n"));
     }
 
     async loadData(vault: Vault) {
-        const path = intoCompletrPath(vault, CONFIG_FILES.IGNORELIST);
+        const path = FileUtils.intoCompletrPath(vault, CONFIG_FILES.IGNORELIST);
         if (!(await vault.adapter.exists(path)))
             return
 

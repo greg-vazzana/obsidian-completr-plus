@@ -72,6 +72,4 @@ export const DEFAULT_SETTINGS: CompletrSettings = {
     debugCapitalization: false,
 }
 
-export function intoCompletrPath(vault: Vault, ...path: string[]): string {
-    return FileUtils.intoCompletrPath(vault, ...path);
-}
+

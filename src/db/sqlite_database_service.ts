@@ -2,7 +2,7 @@ import { Notice, Vault } from 'obsidian';
 import { createHash } from 'crypto';
 import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
 import { SQLITE_SCHEMA } from './sqlite_schema';
-import { intoCompletrPath } from '../settings';
+import { FileUtils } from '../utils/file_utils';
 import { DATABASE_SAVE_INTERVAL_MS, CONFIG_FILES, DATABASE_SOURCE_NAMES, ERROR_MESSAGES } from '../constants';
 
 // Import the same interfaces from the original database service
@@ -61,7 +61,7 @@ export class SQLiteDatabaseService {
 
         try {
             // Load WASM file using vault adapter - same approach as ignorelist.ts
-            const wasmPath = intoCompletrPath(this.vault, CONFIG_FILES.WASM_FILE);
+            const wasmPath = FileUtils.intoCompletrPath(this.vault, CONFIG_FILES.WASM_FILE);
             const wasmBinary = await this.vault.adapter.readBinary(wasmPath);
             
             // Initialize sql.js with the WASM binary data

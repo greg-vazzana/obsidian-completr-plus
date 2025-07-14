@@ -1,12 +1,12 @@
 import { Vault } from "obsidian";
 import { SuggestionIgnorelist } from "../../src/provider/ignorelist";
 import { Suggestion } from "../../src/provider/provider";
-import { intoCompletrPath } from "../../src/settings";
+import { FileUtils } from "../../src/utils/file_utils";
 import { CONFIG_FILES, PATTERNS } from "../../src/constants";
 
 // Mock dependencies
 jest.mock("obsidian");
-jest.mock("../../src/settings");
+jest.mock("../../src/utils/file_utils");
 jest.mock("../../src/constants");
 
 describe("SuggestionIgnorelist", () => {
@@ -29,7 +29,7 @@ describe("SuggestionIgnorelist", () => {
         } as any;
 
         // Mock helper functions
-        (intoCompletrPath as jest.Mock).mockReturnValue("test/ignorelist.txt");
+        (FileUtils.intoCompletrPath as jest.Mock).mockReturnValue("test/ignorelist.txt");
         (CONFIG_FILES.IGNORELIST as any) = "ignorelist.txt";
         (PATTERNS.NEW_LINE as any) = /\r?\n/;
 
@@ -133,7 +133,7 @@ describe("SuggestionIgnorelist", () => {
 
             await SuggestionIgnorelist.saveData(mockVault);
 
-            expect(intoCompletrPath).toHaveBeenCalledWith(mockVault, CONFIG_FILES.IGNORELIST);
+            expect(FileUtils.intoCompletrPath).toHaveBeenCalledWith(mockVault, CONFIG_FILES.IGNORELIST);
             expect(mockVault.adapter.write).toHaveBeenCalledWith(
                 "test/ignorelist.txt",
                 expect.stringContaining("Item 1")
@@ -149,7 +149,7 @@ describe("SuggestionIgnorelist", () => {
 
             await SuggestionIgnorelist.loadData(mockVault);
 
-            expect(intoCompletrPath).toHaveBeenCalledWith(mockVault, CONFIG_FILES.IGNORELIST);
+            expect(FileUtils.intoCompletrPath).toHaveBeenCalledWith(mockVault, CONFIG_FILES.IGNORELIST);
             expect(mockVault.adapter.read).toHaveBeenCalledWith("test/ignorelist.txt");
             expect(SuggestionIgnorelist.hasText("Word 1")).toBe(true);
             expect(SuggestionIgnorelist.hasText("Word 2")).toBe(true);

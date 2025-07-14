@@ -1,6 +1,7 @@
 import { Suggestion, SuggestionContext, SuggestionProvider } from "./provider";
-import { CompletrSettings, intoCompletrPath } from "../settings";
+import { CompletrSettings } from "../settings";
 import { BlockType, EditorUtils } from "../utils/editor_utils";
+import { FileUtils } from "../utils/file_utils";
 import { Notice, Vault } from "obsidian";
 import { SuggestionIgnorelist } from "./ignorelist";
 import { ERROR_NOTICE_DURATION_MS, CONFIG_FILES, ERROR_MESSAGES } from "../constants";
@@ -48,7 +49,7 @@ class LatexSuggestionProvider implements SuggestionProvider {
     }
 
     async loadCommands(vault: Vault) {
-        const path = intoCompletrPath(vault, CONFIG_FILES.LATEX_COMMANDS);
+        const path = FileUtils.intoCompletrPath(vault, CONFIG_FILES.LATEX_COMMANDS);
         if (!(await vault.adapter.exists(path))) {
             const defaultCommands = generateDefaultLatexCommands();
             await vault.adapter.write(path, JSON.stringify(defaultCommands, null, 2));
