@@ -120,6 +120,16 @@ export default class CompletrSettingsTab extends PluginSettingTab {
             });
 
         new Setting(containerEl)
+            .setName("Enable fuzzy matching")
+            .setDesc("Enable fuzzy matching for word suggestions. When enabled, you can find words even with typos or partial matches (e.g., 'obsdn' can match 'obsidian'). When disabled, only exact prefix matches are shown.")
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.enableFuzzyMatching)
+                .onChange(async val => {
+                    this.plugin.settings.enableFuzzyMatching = val;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
             .setName("Word insertion mode")
             .setDesc("The insertion mode that is used. Ignore-case would suggest 'Hello' if the typed text is 'hello', match-case would not. " +
                 "Append would complete 'Hell' with 'Hello' while replace would complete it with 'hello' instead (if only 'hello' was a known word). Only used by the file scanner and word list provider.")

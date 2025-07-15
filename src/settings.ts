@@ -40,6 +40,7 @@ export interface CompletrSettings {
     autoCapitalizeSentences: boolean,
     preserveMixedCaseWords: boolean,
     debugCapitalization: boolean,
+    enableFuzzyMatching: boolean,
 }
 
 export const DEFAULT_SETTINGS: CompletrSettings = {
@@ -70,6 +71,7 @@ export const DEFAULT_SETTINGS: CompletrSettings = {
     autoCapitalizeSentences: true,
     preserveMixedCaseWords: true,
     debugCapitalization: false,
+    enableFuzzyMatching: true,
 }
 
 
