@@ -1,6 +1,7 @@
 import { FuzzyUtils } from '../../src/utils/fuzzy_utils';
 import { CompletrSettings, WordInsertionMode } from '../../src/settings';
 import { Word } from '../../src/db/sqlite_database_service';
+import { MatchType } from '../../src/provider/provider';
 
 describe('FuzzyUtils', () => {
     const mockSettings: CompletrSettings = {
@@ -84,6 +85,30 @@ describe('FuzzyUtils', () => {
             const obsidianResult = results.find(r => r.displayName === 'obsidian');
             expect(obsidianResult?.frequency).toBe(10);
         });
+
+        it('should include match type information', () => {
+            const results = FuzzyUtils.filterWordsFuzzy('obs', mockWords, mockSettings);
+            
+            // Should have both exact and potentially fuzzy matches
+            expect(results.some(r => r.matchType === 'exact')).toBe(true);
+            
+            // Check that obsidian is marked as exact match
+            const obsidianResult = results.find(r => r.displayName === 'obsidian');
+            expect(obsidianResult?.matchType).toBe('exact');
+        });
+
+        it('should include highlight ranges for fuzzy matches', () => {
+            const results = FuzzyUtils.filterWordsFuzzy('obsdn', mockWords, mockSettings);
+            
+            expect(results.length).toBeGreaterThan(0);
+            
+            // Should find obsidian as a fuzzy match
+            const obsidianResult = results.find(r => r.displayName === 'obsidian');
+            expect(obsidianResult).toBeDefined();
+            expect(obsidianResult?.matchType).toBe('fuzzy');
+            expect(obsidianResult?.highlightRanges).toBeDefined();
+            expect(obsidianResult?.highlightRanges?.length).toBeGreaterThan(0);
+        });
     });
 
     describe('filterWordsExact', () => {
@@ -131,6 +156,40 @@ describe('FuzzyUtils', () => {
             expect(FuzzyUtils.isExactMatch('Obsidian', 'obs', true)).toBe(true);
             expect(FuzzyUtils.isExactMatch('Obsidian', 'obs', false)).toBe(false);
             expect(FuzzyUtils.isExactMatch('absolute', 'obs', true)).toBe(false);
+        });
+    });
+
+    describe('extractHighlightRanges', () => {
+        it('should extract highlight ranges from fuzzysort result', () => {
+            // Mock fuzzysort result with indexes
+            const mockResult: any = {
+                indexes: [0, 1, 2, 5, 6] // Highlights "obs" at start and "di" later
+            };
+
+            const ranges = FuzzyUtils.extractHighlightRanges(mockResult);
+
+            expect(ranges).toEqual([
+                { start: 0, end: 3 }, // "obs" (indexes 0,1,2)
+                { start: 5, end: 7 }  // "di" (indexes 5,6)
+            ]);
+        });
+
+        it('should handle empty indexes', () => {
+            const mockResult: any = { indexes: [] };
+            const ranges = FuzzyUtils.extractHighlightRanges(mockResult);
+            expect(ranges).toEqual([]);
+        });
+
+        it('should handle missing indexes property', () => {
+            const mockResult: any = {};
+            const ranges = FuzzyUtils.extractHighlightRanges(mockResult);
+            expect(ranges).toEqual([]);
+        });
+
+        it('should handle single character highlight', () => {
+            const mockResult: any = { indexes: [3] };
+            const ranges = FuzzyUtils.extractHighlightRanges(mockResult);
+            expect(ranges).toEqual([{ start: 3, end: 4 }]);
         });
     });
 }); 

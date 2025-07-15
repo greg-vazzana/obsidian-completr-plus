@@ -1,5 +1,5 @@
 import * as fuzzysort from 'fuzzysort';
-import { Suggestion } from '../provider/provider';
+import { Suggestion, MatchType, HighlightRange } from '../provider/provider';
 import { Word } from '../db/sqlite_database_service';
 import { CompletrSettings, WordInsertionMode } from '../settings';
 
@@ -43,12 +43,18 @@ export class FuzzyUtils {
                 suggestionText = word.word;
             }
             
-            const suggestion = Suggestion.fromString(suggestionText);
+            // Determine if this is an exact match
+            const isExactMatch = result.score > 0 && word.word.toLowerCase().startsWith(query.toLowerCase());
+            const matchType: MatchType = isExactMatch ? 'exact' : 'fuzzy';
             
-            // Add frequency if > 1
-            if (word.frequency > 1) {
-                suggestion.frequency = word.frequency;
-            }
+            // Extract highlight ranges from fuzzysort result
+            const highlightRanges = FuzzyUtils.extractHighlightRanges(result);
+            
+            const suggestion = new Suggestion(suggestionText, suggestionText, undefined, undefined, {
+                frequency: word.frequency > 1 ? word.frequency : undefined,
+                matchType: matchType,
+                highlightRanges: highlightRanges
+            });
             
             // Calculate combined rating: fuzzysort score + frequency boost - length penalty
             const fuzzyScore = result.score;
@@ -58,7 +64,7 @@ export class FuzzyUtils {
             // Store the combined rating for sorting
             (suggestion as any).rating = fuzzyScore + frequencyBoost - lengthPenalty;
             (suggestion as any).fuzzyScore = fuzzyScore;
-            (suggestion as any).isExactMatch = fuzzyScore > 0 && word.word.toLowerCase().startsWith(query.toLowerCase());
+            (suggestion as any).isExactMatch = isExactMatch;
             
             return suggestion;
         });
@@ -128,11 +134,10 @@ export class FuzzyUtils {
                     suggestionText = word.word;
                 }
                 
-                const suggestion = Suggestion.fromString(suggestionText);
-                
-                if (word.frequency > 1) {
-                    suggestion.frequency = word.frequency;
-                }
+                const suggestion = new Suggestion(suggestionText, suggestionText, undefined, undefined, {
+                    frequency: word.frequency > 1 ? word.frequency : undefined,
+                    matchType: 'exact'
+                });
                 
                 // Calculate rating for exact matches
                 (suggestion as any).rating = word.frequency * 1000 - word.word.length;
@@ -148,5 +153,41 @@ export class FuzzyUtils {
         return settings.maxSuggestions > 0 
             ? results.slice(0, settings.maxSuggestions)
             : results;
+    }
+
+    /**
+     * Extract highlight ranges from fuzzysort result
+     * @param result - The fuzzysort result object
+     * @returns Array of highlight ranges
+     */
+    static extractHighlightRanges(result: any): HighlightRange[] {
+        const ranges: HighlightRange[] = [];
+        
+        if (!result.indexes || result.indexes.length === 0) {
+            return ranges;
+        }
+        
+        // Group consecutive indexes into ranges
+        let start = result.indexes[0];
+        let end = start;
+        
+        for (let i = 1; i < result.indexes.length; i++) {
+            const currentIndex = result.indexes[i];
+            
+            if (currentIndex === end + 1) {
+                // Consecutive index, extend current range
+                end = currentIndex;
+            } else {
+                // Gap found, save current range and start new one
+                ranges.push({ start: start, end: end + 1 }); // end is exclusive
+                start = currentIndex;
+                end = currentIndex;
+            }
+        }
+        
+        // Add the final range
+        ranges.push({ start: start, end: end + 1 });
+        
+        return ranges;
     }
 } 

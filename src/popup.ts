@@ -11,7 +11,7 @@ import {
 
 import { EditorUtils } from "./utils/editor_utils";
 import { SuggestionIgnorelist } from "./provider/ignorelist";
-import { Suggestion } from "./provider/provider";
+import { Suggestion, HighlightRange } from "./provider/provider";
 import { providerRegistry } from "./provider/provider_registry";
 import { CompletrSettings } from "./settings";
 import SnippetManager from "./snippet_manager";
@@ -133,19 +133,39 @@ export default class SuggestionPopup extends EditorSuggest<Suggestion> {
         const content = el.doc.createElement("div");
         content.addClass("completr-suggestion-content");
 
-        // Add the icon.
+        // Add the icon (or match type icon if no custom icon)
         if (value.icon != null) {
             const icon = getIcon(value.icon);
             if (icon != null) {
                 icon.addClass("completr-suggestion-icon");
                 content.appendChild(icon);
             }
+        } else if (value.matchType === 'fuzzy') {
+            // Add a subtle fuzzy match indicator
+            const fuzzyIcon = getIcon("zap");
+            if (fuzzyIcon != null) {
+                fuzzyIcon.addClass("completr-suggestion-icon");
+                fuzzyIcon.addClass("completr-fuzzy-indicator");
+                content.appendChild(fuzzyIcon);
+            }
         }
 
-        // Add the text.
+        // Add the text with highlighting if available
         const text = el.doc.createElement("div");
         text.addClass("completr-suggestion-text");
-        text.setText(value.displayName);
+        
+        // Add match type indicator class
+        if (value.matchType) {
+            text.addClass(`completr-match-${value.matchType}`);
+        }
+        
+        // Render text with highlights if available
+        if (value.highlightRanges && value.highlightRanges.length > 0) {
+            this.renderHighlightedText(text, value.displayName, value.highlightRanges);
+        } else {
+            text.setText(value.displayName);
+        }
+        
         content.appendChild(text);
 
         el.appendChild(content);
@@ -245,6 +265,41 @@ export default class SuggestionPopup extends EditorSuggest<Suggestion> {
             this.compiledCharacterRegex = new RegExp("[" + this.settings.characterRegex + "]", "u");
 
         return this.compiledCharacterRegex;
+    }
+
+    private renderHighlightedText(container: HTMLElement, text: string, highlightRanges: HighlightRange[]): void {
+        if (highlightRanges.length === 0) {
+            container.setText(text);
+            return;
+        }
+
+        // Sort ranges by start position
+        const sortedRanges = [...highlightRanges].sort((a, b) => a.start - b.start);
+        
+        let lastEnd = 0;
+        
+        for (const range of sortedRanges) {
+            // Add non-highlighted text before this range
+            if (range.start > lastEnd) {
+                const normalText = text.substring(lastEnd, range.start);
+                container.appendText(normalText);
+            }
+            
+            // Add highlighted text
+            const highlightedText = text.substring(range.start, range.end);
+            const highlight = container.doc.createElement("mark");
+            highlight.addClass("completr-highlight");
+            highlight.setText(highlightedText);
+            container.appendChild(highlight);
+            
+            lastEnd = range.end;
+        }
+        
+        // Add any remaining non-highlighted text
+        if (lastEnd < text.length) {
+            const remainingText = text.substring(lastEnd);
+            container.appendText(remainingText);
+        }
     }
 
 }
