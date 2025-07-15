@@ -125,7 +125,7 @@ describe('LiveWordTracker', () => {
       await tracker.trackWordCompletion(mockEditor, oldCursor, newCursor);
 
       expect(WordPatterns.isWordCharacter).toHaveBeenCalledWith(' ');
-      expect(WordPatterns.findWordAtPosition).toHaveBeenCalledWith('hello world test', 5);
+      expect(WordPatterns.findWordAtPosition).toHaveBeenCalledWith('hello world test', 6);
       expect(Scanner.incrementWordFrequency).toHaveBeenCalledWith('hello');
     });
 
@@ -136,7 +136,7 @@ describe('LiveWordTracker', () => {
       await tracker.trackWordCompletion(mockEditor, oldCursor, newCursor);
 
       expect(WordPatterns.isWordCharacter).toHaveBeenCalledWith('\n');
-      expect(WordPatterns.findWordAtPosition).toHaveBeenCalledWith('hello world test', 4);
+      expect(WordPatterns.findWordAtPosition).toHaveBeenCalledWith('hello world test', 5);
       expect(Scanner.incrementWordFrequency).toHaveBeenCalledWith('hello');
     });
 
@@ -150,7 +150,7 @@ describe('LiveWordTracker', () => {
       await tracker.trackWordCompletion(mockEditor, oldCursor, newCursor);
 
       expect(WordPatterns.isWordCharacter).toHaveBeenCalledWith('.');
-      expect(WordPatterns.findWordAtPosition).toHaveBeenCalledWith('hello world test', 5);
+      expect(WordPatterns.findWordAtPosition).toHaveBeenCalledWith('hello world test', 6);
       expect(Scanner.incrementWordFrequency).toHaveBeenCalledWith('hello');
     });
 
@@ -191,6 +191,7 @@ describe('LiveWordTracker', () => {
       expect(WordPatterns.findWordAtPosition).not.toHaveBeenCalled();
       expect(Scanner.incrementWordFrequency).not.toHaveBeenCalled();
     });
+
   });
 
   describe('Movement Detection', () => {
@@ -216,7 +217,7 @@ describe('LiveWordTracker', () => {
       await tracker.trackWordCompletion(mockEditor, oldCursor, newCursor);
 
       expect(WordPatterns.isWordCharacter).toHaveBeenCalledWith('\n');
-      expect(WordPatterns.findWordAtPosition).toHaveBeenCalledWith('hello world test', 3);
+      expect(WordPatterns.findWordAtPosition).toHaveBeenCalledWith('hello world test', 4);
     });
 
     it('should skip when old cursor was at beginning of line', async () => {
@@ -400,7 +401,7 @@ describe('LiveWordTracker', () => {
 
       await tracker.trackWordCompletion(mockEditor, oldCursor, newCursor);
 
-      expect(WordPatterns.findWordAtPosition).toHaveBeenCalledWith('hello world test', 11);
+      expect(WordPatterns.findWordAtPosition).toHaveBeenCalledWith('hello world test', 12);
       expect(Scanner.incrementWordFrequency).toHaveBeenCalledWith('world');
     });
 

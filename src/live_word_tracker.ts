@@ -95,7 +95,7 @@ export class LiveWordTracker {
         const line = editor.getLine(cursor.line);
         this.debugLog('LiveWordTracker: Line:', line, 'Cursor ch:', cursor.ch);
         
-        const word = WordPatterns.findWordAtPosition(line, cursor.ch - 1);
+        const word = WordPatterns.findWordAtPosition(line, cursor.ch);
         
         if (word && word.length >= this.settings.minWordLength) {
             this.debugLog('LiveWordTracker: Extracted word:', `"${word}"`, 'using WordPatterns');
