@@ -237,6 +237,62 @@ describe('NLPCapitalizer', () => {
       expect(mockEditor.getLine(0)).toBe('\t> Line 2');
     });
 
+    // Hashtag handling tests - verify fix for tag capitalization issue
+    it('should NOT capitalize hashtags without space after #', () => {
+      mockEditor = createMockEditor(['#mytag']);
+      const cursor: EditorPosition = { line: 0, ch: 6 }; // Position after "mytag"
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBe('#mytag'); // Should remain unchanged
+    });
+
+    it('should NOT capitalize hashtags with multiple words', () => {
+      mockEditor = createMockEditor(['#mytagwithtext']);
+      const cursor: EditorPosition = { line: 0, ch: 15 }; // Position after the hashtag
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBe('#mytagwithtext'); // Should remain unchanged
+    });
+
+    it('should NOT capitalize hashtags at beginning of line', () => {
+      mockEditor = createMockEditor(['#test']);
+      const cursor: EditorPosition = { line: 0, ch: 5 }; // Position after "test"
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBe('#test'); // Should remain unchanged
+    });
+
+    it('should still capitalize markdown headings with space after #', () => {
+      mockEditor = createMockEditor(['# hello world']);
+      const cursor: EditorPosition = { line: 0, ch: 7 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBe('# Hello world'); // Should be capitalized
+    });
+
+    it('should NOT capitalize hashtags even with hyphens', () => {
+      mockEditor = createMockEditor(['#test-tag']);
+      const cursor: EditorPosition = { line: 0, ch: 9 }; // Position after the hashtag
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      expect(mockEditor.getLine(0)).toBe('#test-tag'); // Should remain unchanged
+    });
+
+    it('should handle mixed hashtags and regular text correctly', () => {
+      mockEditor = createMockEditor(['#tag hello world']);
+      const cursor: EditorPosition = { line: 0, ch: 10 }; // Position after "hello"
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      // The hashtag should not be capitalized, and since it's not a prefix, no words should be capitalized
+      expect(mockEditor.getLine(0)).toBe('#tag hello world');
+    });
+
     it('should still treat actual indented code blocks as code blocks', () => {
       mockEditor = createMockEditor(['\tthis is code']); // Tab character followed by code (no markdown syntax)
       const cursor: EditorPosition = { line: 0, ch: 10 }; // Position after "this is code"

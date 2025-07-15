@@ -841,13 +841,19 @@ export default class NLPCapitalizer {
      */
     private findFirstWordOnLine(line: string): { word: string, startIndex: number, endIndex: number } | null {
         // Skip leading whitespace and markdown prefixes
-        const trimmedMatch = line.match(/^(\s*(?:[#]+\s*|[-*+]\s+|\d+\.\s+|>\s*)*)(.*)/);
+        // Note: [#]+\s+ requires space after # to differentiate markdown headings from hashtags
+        const trimmedMatch = line.match(/^(\s*(?:[#]+\s+|[-*+]\s+|\d+\.\s+|>\s*)*)(.*)/);
         if (!trimmedMatch) {
             return null;
         }
 
         const prefixLength = trimmedMatch[1].length;
         const remainingText = trimmedMatch[2];
+
+        // Skip hashtags (tags without space after #) - they should not be capitalized
+        if (remainingText.match(/^#[\p{L}\d]/u)) {
+            return null;
+        }
 
         // Find the first word in the remaining text using a simple word pattern
         const wordMatch = remainingText.match(/[\p{L}\d]+(?:[-'_][\p{L}\d]+)*/u);
