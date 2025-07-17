@@ -11,7 +11,7 @@
 		"test:coverage": "jest --coverage"
 	},
 	"keywords": [],
-	"author": "tth05",
+	"author": "greg-vazzana",
 	"license": "MIT",
 	"devDependencies": {
 		"@codemirror/state": "^6.1.2",
