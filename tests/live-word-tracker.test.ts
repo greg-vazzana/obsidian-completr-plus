@@ -649,4 +649,69 @@ describe('LiveWordTracker', () => {
       }
     }, 10000);
   });
+
+  describe('Comma Punctuation Tests', () => {
+    beforeEach(() => {
+      (WordPatterns.isWordCharacter as jest.Mock) = jest.fn()
+        .mockImplementation((char: string) => /[a-zA-Z]/.test(char));
+      (WordPatterns.findWordAtPosition as jest.Mock) = jest.fn();
+    });
+
+    it('should track word completion when typing comma after "corporate"', async () => {
+      // Setup mock to return "corporate" when looking for word at position
+      (WordPatterns.findWordAtPosition as jest.Mock) = jest.fn()
+        .mockReturnValue('corporate');
+
+      // Mock editor with "corporate," 
+      mockEditor = createMockEditor(['corporate,']);
+      mockEditor.getRange = jest.fn().mockReturnValue(','); // Return comma character
+
+      const oldCursor: EditorPosition = { line: 0, ch: 9 }; // After "corporate"
+      const newCursor: EditorPosition = { line: 0, ch: 10 }; // After comma
+
+      await tracker.trackWordCompletion(mockEditor, oldCursor, newCursor);
+
+      expect(WordPatterns.isWordCharacter).toHaveBeenCalledWith(',');
+      expect(WordPatterns.findWordAtPosition).toHaveBeenCalledWith('corporate,', 10);
+      expect(Scanner.incrementWordFrequency).toHaveBeenCalledWith('corporate');
+    });
+
+    it('should track "corporate" twice when typing "corporate, corporate"', async () => {
+      jest.useFakeTimers();
+
+      try {
+        // Mock to return appropriate words
+        (WordPatterns.findWordAtPosition as jest.Mock) = jest.fn()
+          .mockReturnValueOnce('corporate') // First time
+          .mockReturnValueOnce('corporate'); // Second time
+
+        // First word completion: "corporate" -> "corporate,"
+        mockEditor = createMockEditor(['corporate,']);
+        mockEditor.getRange = jest.fn().mockReturnValue(',');
+
+        const oldCursor1: EditorPosition = { line: 0, ch: 9 };
+        const newCursor1: EditorPosition = { line: 0, ch: 10 };
+
+        await tracker.trackWordCompletion(mockEditor, oldCursor1, newCursor1);
+
+        // Second word completion: "corporate, corporate" -> "corporate, corporate "
+        mockEditor = createMockEditor(['corporate, corporate ']);
+        mockEditor.getRange = jest.fn().mockReturnValue(' ');
+
+        const oldCursor2: EditorPosition = { line: 0, ch: 20 };
+        const newCursor2: EditorPosition = { line: 0, ch: 21 };
+
+        await tracker.trackWordCompletion(mockEditor, oldCursor2, newCursor2);
+
+        expect(Scanner.incrementWordFrequency).toHaveBeenCalledTimes(2);
+        expect(Scanner.incrementWordFrequency).toHaveBeenNthCalledWith(1, 'corporate');
+        expect(Scanner.incrementWordFrequency).toHaveBeenNthCalledWith(2, 'corporate');
+      } finally {
+        jest.clearAllTimers();
+        jest.useRealTimers();
+      }
+    });
+  });
+
+
 }); 

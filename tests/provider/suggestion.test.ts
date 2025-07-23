@@ -328,4 +328,66 @@ describe('Suggestion', () => {
       expect(result.frequency).toBe(1);
     });
   });
+
+  describe('getReplacementWithPreservedCase', () => {
+    it('should preserve lowercase query case', () => {
+      const suggestion = new Suggestion('hello', 'hello', undefined, undefined, {
+        originalQueryCase: 'he'
+      });
+      
+      expect(suggestion.getReplacementWithPreservedCase()).toBe('hello');
+    });
+
+    it('should preserve uppercase query case', () => {
+      const suggestion = new Suggestion('hello', 'hello', undefined, undefined, {
+        originalQueryCase: 'HE'
+      });
+      
+      expect(suggestion.getReplacementWithPreservedCase()).toBe('HELLO');
+    });
+
+    it('should preserve capitalized query case', () => {
+      const suggestion = new Suggestion('hello', 'hello', undefined, undefined, {
+        originalQueryCase: 'He'
+      });
+      
+      expect(suggestion.getReplacementWithPreservedCase()).toBe('Hello');
+    });
+
+    it('should return original replacement if no originalQueryCase', () => {
+      const suggestion = new Suggestion('hello', 'hello');
+      expect(suggestion.getReplacementWithPreservedCase()).toBe('hello');
+    });
+
+    it('should handle empty originalQueryCase', () => {
+      const suggestion = new Suggestion('hello', 'hello', undefined, undefined, {
+        originalQueryCase: ''
+      });
+      
+      expect(suggestion.getReplacementWithPreservedCase()).toBe('hello');
+    });
+  });
+
+  describe('constructor and derive', () => {
+    it('should preserve originalQueryCase in derive', () => {
+      const original = new Suggestion('hello', 'hello', undefined, undefined, {
+        originalQueryCase: 'He'
+      });
+      
+      const derived = original.derive({});
+      expect(derived.originalQueryCase).toBe('He');
+    });
+
+    it('should allow overriding originalQueryCase in derive', () => {
+      const original = new Suggestion('hello', 'hello', undefined, undefined, {
+        originalQueryCase: 'He'
+      });
+      
+      const derived = original.derive({
+        originalQueryCase: 'HE'
+      });
+      
+      expect(derived.originalQueryCase).toBe('HE');
+    });
+  });
 }); 

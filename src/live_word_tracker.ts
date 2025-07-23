@@ -95,7 +95,15 @@ export class LiveWordTracker {
         const line = editor.getLine(cursor.line);
         this.debugLog('LiveWordTracker: Line:', line, 'Cursor ch:', cursor.ch);
         
-        const word = WordPatterns.findWordAtPosition(line, cursor.ch);
+        // Look for word that ends at the current position
+        let word = WordPatterns.findWordAtPosition(line, cursor.ch);
+        
+        // If no word found at current position and we're not at the beginning of line,
+        // look for word that ends just before current position (common case when typing punctuation)
+        if (!word && cursor.ch > 0) {
+            word = WordPatterns.findWordAtPosition(line, cursor.ch - 1);
+            this.debugLog('LiveWordTracker: Checking position before cursor (ch-1):', cursor.ch - 1);
+        }
         
         if (word && word.length >= this.settings.minWordLength) {
             this.debugLog('LiveWordTracker: Extracted word:', `"${word}"`, 'using WordPatterns');

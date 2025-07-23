@@ -51,7 +51,7 @@ export const DEFAULT_SETTINGS: CompletrSettings = {
     minWordLength: 2,
     minWordTriggerLength: 2,
     maxSuggestions: 20,
-    wordInsertionMode: WordInsertionMode.MATCH_CASE_REPLACE,
+    wordInsertionMode: WordInsertionMode.IGNORE_CASE_REPLACE,
     ignoreDiacriticsWhenFiltering: false,
     insertSpaceAfterComplete: false,
     insertPeriodAfterSpaces: false,

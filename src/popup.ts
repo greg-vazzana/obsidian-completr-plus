@@ -180,7 +180,7 @@ export default class SuggestionPopup extends EditorSuggest<Suggestion> {
     }
 
     selectSuggestion(value: Suggestion, evt: MouseEvent | KeyboardEvent): void {
-        const replacement = value.replacement;
+        const replacement = value.getReplacementWithPreservedCase();
         const start = typeof value !== "string" && value.overrideStart ? value.overrideStart : this.context.start;
 
         const endPos = value.overrideEnd ?? this.context.end;

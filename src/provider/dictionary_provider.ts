@@ -44,7 +44,10 @@ export abstract class DictionaryProvider implements SuggestionProvider {
 
         //This is an array of maps to avoid unnecessarily creating a new huge map containing all elements of both maps.
         const wordMaps = ignoreCase ?
-            [this.wordMap.get(firstChar) ?? new Map(), this.wordMap.get(firstChar.toUpperCase()) ?? new Map()] //Get both maps if we're ignoring case
+            [
+                this.wordMap.get(firstChar.toLowerCase()) ?? new Map(),
+                this.wordMap.get(firstChar.toUpperCase()) ?? new Map()
+            ] //Get both maps if we're ignoring case
             : [this.wordMap.get(firstChar) ?? new Map()];
 
         if (ignoreDiacritics) {
@@ -72,13 +75,12 @@ export abstract class DictionaryProvider implements SuggestionProvider {
                 wordObj => {
                     const suggestion = settings.wordInsertionMode === WordInsertionMode.IGNORE_CASE_APPEND
                         ? Suggestion.fromString(context.query + wordObj.word.substring(query.length))
-                        : Suggestion.fromString(wordObj.word);
+                        : new Suggestion(wordObj.word, wordObj.word, undefined, undefined, {
+                            frequency: wordObj.frequency > 1 ? wordObj.frequency : undefined,
+                            matchType: 'exact',
+                            originalQueryCase: context.query // Track original query case
+                        });
                     (suggestion as any).rating = wordObj.frequency * 1000 - wordObj.word.length;
-                    
-                    // Add frequency to suggestion if > 1
-                    if (wordObj.frequency > 1) {
-                        suggestion.frequency = wordObj.frequency;
-                    }
                     
                     return suggestion;
                 }

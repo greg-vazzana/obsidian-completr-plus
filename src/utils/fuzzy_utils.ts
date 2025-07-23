@@ -53,7 +53,8 @@ export class FuzzyUtils {
             const suggestion = new Suggestion(suggestionText, suggestionText, undefined, undefined, {
                 frequency: word.frequency > 1 ? word.frequency : undefined,
                 matchType: matchType,
-                highlightRanges: highlightRanges
+                highlightRanges: highlightRanges,
+                originalQueryCase: query // Track original query case
             });
             
             // Calculate combined rating: fuzzysort score + frequency boost - length penalty
