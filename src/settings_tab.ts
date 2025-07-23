@@ -153,11 +153,21 @@ export default class CompletrSettingsTab extends PluginSettingTab {
                     this.plugin.settings.ignoreDiacriticsWhenFiltering = val;
                     await this.plugin.saveSettings();
                 }));
-                
+
         new Setting(containerEl)
-        .setName("Authoring")
-        .setHeading();
-            
+            .setName("Authoring")
+            .setHeading();
+
+        new Setting(containerEl)
+            .setName("Live word tracking")
+            .setDesc("When enabled, word frequencies are updated in real-time as you type. Words will be tracked and their frequency incremented immediately when you complete them by typing a space or punctuation.")
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.liveWordTracking)
+                .onChange(async val => {
+                    this.plugin.settings.liveWordTracking = val;
+                    await this.plugin.saveSettings();
+                }));
+
         new Setting(containerEl)
             .setName("Add space after completed word")
             .setDesc("When enabled, a space will be added after a word has been completed.")
@@ -167,7 +177,7 @@ export default class CompletrSettingsTab extends PluginSettingTab {
                     this.plugin.settings.insertSpaceAfterComplete = val;
                     await this.plugin.saveSettings();
                 }));
-        
+
         new Setting(containerEl)
             .setName("Insert period after double space")
             .setDesc("When enabled, a period is added after a completed word if a space is added after an automatic space, via the option above.")
@@ -308,7 +318,7 @@ export default class CompletrSettingsTab extends PluginSettingTab {
                                 const files = this.plugin.app.vault.getMarkdownFiles();
                                 const notice = new Notice(`Scanning ${files.length} files...`, 0);
                                 let scannedCount = 0;
-                                
+
                                 // Process files in batches to show progress
                                 const batchSize = FILE_PROCESSING_BATCH_SIZE;
                                 for (let i = 0; i < files.length; i += batchSize) {
@@ -317,7 +327,7 @@ export default class CompletrSettingsTab extends PluginSettingTab {
                                     scannedCount += batch.length;
                                     notice.setMessage(`Scanning files... ${scannedCount}/${files.length}`);
                                 }
-                                
+
                                 notice.hide();
                                 new Notice(`Successfully scanned ${files.length} files!`);
                             } catch (error) {
@@ -344,16 +354,6 @@ export default class CompletrSettingsTab extends PluginSettingTab {
                 }));
 
         this.createEnabledSetting("scanEnabled", "Whether or not the scanner is enabled", containerEl);
-
-        new Setting(containerEl)
-            .setName("Live word tracking")
-            .setDesc("When enabled, word frequencies are updated in real-time as you type. Words will be tracked and their frequency incremented immediately when you complete them by typing a space or punctuation.")
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.liveWordTracking)
-                .onChange(async val => {
-                    this.plugin.settings.liveWordTracking = val;
-                    await this.plugin.saveSettings();
-                }));
 
         new Setting(containerEl)
             .setName("Word list provider")
