@@ -485,7 +485,7 @@ describe("WordListSuggestionProvider", () => {
         test("should handle case-insensitive matching", () => {
             const caseInsensitiveSettings = { 
                 ...settings, 
-                wordInsertionMode: WordInsertionMode.IGNORE_CASE_REPLACE 
+                wordInsertionMode: WordInsertionMode.REPLACE 
             };
             
             // Add words to both lowercase and uppercase letter maps for case-insensitive testing

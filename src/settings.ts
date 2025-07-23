@@ -2,9 +2,8 @@ import { Vault } from "obsidian";
 import { FileUtils } from "./utils/file_utils";
 
 export const enum WordInsertionMode {
-    MATCH_CASE_REPLACE = "Match-Case & Replace",
-    IGNORE_CASE_REPLACE = "Ignore-Case & Replace",
-    IGNORE_CASE_APPEND = "Ignore-Case & Append"
+    REPLACE = "Replace word",  // Replace entire word with suggestion (preserving case)
+    APPEND = "Complete word"   // Append remaining letters to existing word
 }
 
 export const enum CalloutProviderSource {
@@ -51,7 +50,7 @@ export const DEFAULT_SETTINGS: CompletrSettings = {
     minWordLength: 2,
     minWordTriggerLength: 2,
     maxSuggestions: 20,
-    wordInsertionMode: WordInsertionMode.IGNORE_CASE_REPLACE,
+    wordInsertionMode: WordInsertionMode.REPLACE,
     ignoreDiacriticsWhenFiltering: false,
     insertSpaceAfterComplete: false,
     insertPeriodAfterSpaces: false,

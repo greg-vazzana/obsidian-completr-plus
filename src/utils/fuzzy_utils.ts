@@ -37,7 +37,7 @@ export class FuzzyUtils {
             let suggestionText: string;
             
             // Handle different insertion modes
-            if (settings.wordInsertionMode === WordInsertionMode.IGNORE_CASE_APPEND) {
+            if (settings.wordInsertionMode === WordInsertionMode.APPEND) {
                 suggestionText = query + word.word.substring(query.length);
             } else {
                 suggestionText = word.word;
@@ -93,13 +93,10 @@ export class FuzzyUtils {
      * Check if a word matches exactly (starts with query)
      * @param word - The word to check
      * @param query - The search query
-     * @param ignoreCase - Whether to ignore case
-     * @returns True if it's an exact prefix match
+     * @returns True if it's an exact prefix match (case-insensitive)
      */
-    static isExactMatch(word: string, query: string, ignoreCase: boolean): boolean {
-        const wordToCheck = ignoreCase ? word.toLowerCase() : word;
-        const queryToCheck = ignoreCase ? query.toLowerCase() : query;
-        return wordToCheck.startsWith(queryToCheck);
+    static isExactMatch(word: string, query: string): boolean {
+        return word.toLowerCase().startsWith(query.toLowerCase());
     }
 
     /**
@@ -118,18 +115,17 @@ export class FuzzyUtils {
             return [];
         }
 
-        const ignoreCase = settings.wordInsertionMode !== WordInsertionMode.MATCH_CASE_REPLACE;
-        const queryLower = ignoreCase ? query.toLowerCase() : query;
-
+        // Always use case-insensitive matching
+        const queryLower = query.toLowerCase();
         const results: Suggestion[] = [];
         
         for (const word of words) {
-            const wordToCheck = ignoreCase ? word.word.toLowerCase() : word.word;
+            const wordToCheck = word.word.toLowerCase();
             
             if (wordToCheck.startsWith(queryLower)) {
                 let suggestionText: string;
                 
-                if (settings.wordInsertionMode === WordInsertionMode.IGNORE_CASE_APPEND) {
+                if (settings.wordInsertionMode === WordInsertionMode.APPEND) {
                     suggestionText = query + word.word.substring(query.length);
                 } else {
                     suggestionText = word.word;
@@ -137,7 +133,8 @@ export class FuzzyUtils {
                 
                 const suggestion = new Suggestion(suggestionText, suggestionText, undefined, undefined, {
                     frequency: word.frequency > 1 ? word.frequency : undefined,
-                    matchType: 'exact'
+                    matchType: 'exact',
+                    originalQueryCase: query // Track original query case
                 });
                 
                 // Calculate rating for exact matches
@@ -157,38 +154,25 @@ export class FuzzyUtils {
     }
 
     /**
-     * Extract highlight ranges from fuzzysort result
-     * @param result - The fuzzysort result object
-     * @returns Array of highlight ranges
+     * Extract highlight ranges from a fuzzysort result
      */
-    static extractHighlightRanges(result: any): HighlightRange[] {
+    private static extractHighlightRanges(result: any): HighlightRange[] {
+        if (!result.indexes || result.indexes.length === 0) return [];
+        
         const ranges: HighlightRange[] = [];
-        
-        if (!result.indexes || result.indexes.length === 0) {
-            return ranges;
-        }
-        
-        // Group consecutive indexes into ranges
         let start = result.indexes[0];
-        let end = start;
+        let prev = start;
         
         for (let i = 1; i < result.indexes.length; i++) {
-            const currentIndex = result.indexes[i];
-            
-            if (currentIndex === end + 1) {
-                // Consecutive index, extend current range
-                end = currentIndex;
-            } else {
-                // Gap found, save current range and start new one
-                ranges.push({ start: start, end: end + 1 }); // end is exclusive
-                start = currentIndex;
-                end = currentIndex;
+            const current = result.indexes[i];
+            if (current !== prev + 1) {
+                ranges.push({ start, end: prev + 1 });
+                start = current;
             }
+            prev = current;
         }
         
-        // Add the final range
-        ranges.push({ start: start, end: end + 1 });
-        
+        ranges.push({ start, end: prev + 1 });
         return ranges;
     }
 } 

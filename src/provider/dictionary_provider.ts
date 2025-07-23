@@ -36,26 +36,23 @@ export abstract class DictionaryProvider implements SuggestionProvider {
         // Use the original exact matching logic
         const firstChar = context.query.charAt(0);
 
-        const ignoreCase = settings.wordInsertionMode !== WordInsertionMode.MATCH_CASE_REPLACE;
-        let query = TextUtils.maybeLowerCase(context.query, ignoreCase);
+        // Always use case-insensitive matching, we'll preserve case when replacing
+        let query = context.query.toLowerCase();
         const ignoreDiacritics = settings.ignoreDiacriticsWhenFiltering;
         if (ignoreDiacritics)
             query = TextUtils.removeDiacritics(query);
 
-        //This is an array of maps to avoid unnecessarily creating a new huge map containing all elements of both maps.
-        const wordMaps = ignoreCase ?
-            [
-                this.wordMap.get(firstChar.toLowerCase()) ?? new Map(),
-                this.wordMap.get(firstChar.toUpperCase()) ?? new Map()
-            ] //Get both maps if we're ignoring case
-            : [this.wordMap.get(firstChar) ?? new Map()];
+        // Always check both lowercase and uppercase maps
+        const wordMaps = [
+            this.wordMap.get(firstChar.toLowerCase()) ?? new Map(),
+            this.wordMap.get(firstChar.toUpperCase()) ?? new Map()
+        ];
 
         if (ignoreDiacritics) {
-            // This additionally adds all words that start with a diacritic, which the two maps above might not cover.
+            // This additionally adds all words that start with a diacritic
             for (let [key, value] of this.wordMap.entries()) {
-                let keyFirstChar = TextUtils.maybeLowerCase(key.charAt(0), ignoreCase);
-
-                if (TextUtils.removeDiacritics(keyFirstChar) === firstChar)
+                let keyFirstChar = key.charAt(0).toLowerCase();
+                if (TextUtils.removeDiacritics(keyFirstChar) === firstChar.toLowerCase())
                     wordMaps.push(value);
             }
         }
@@ -67,13 +64,13 @@ export abstract class DictionaryProvider implements SuggestionProvider {
         for (let wordMap of wordMaps) {
             TextUtils.filterMapIntoArray(result, wordMap.values(),
                 wordObj => {
-                    let match = TextUtils.maybeLowerCase(wordObj.word, ignoreCase);
+                    let match = wordObj.word.toLowerCase();
                     if (ignoreDiacritics)
                         match = TextUtils.removeDiacritics(match);
                     return match.startsWith(query);
                 },
                 wordObj => {
-                    const suggestion = settings.wordInsertionMode === WordInsertionMode.IGNORE_CASE_APPEND
+                    const suggestion = settings.wordInsertionMode === WordInsertionMode.APPEND
                         ? Suggestion.fromString(context.query + wordObj.word.substring(query.length))
                         : new Suggestion(wordObj.word, wordObj.word, undefined, undefined, {
                             frequency: wordObj.frequency > 1 ? wordObj.frequency : undefined,
@@ -100,25 +97,21 @@ export abstract class DictionaryProvider implements SuggestionProvider {
         
         // For fuzzy matching, we need to check more characters than just the first one
         // Get words starting with the first few characters to keep the search space reasonable
-        const ignoreCase = settings.wordInsertionMode !== WordInsertionMode.MATCH_CASE_REPLACE;
         const ignoreDiacritics = settings.ignoreDiacriticsWhenFiltering;
         
         // Get the first character variations to check
         const firstChar = query.charAt(0);
         const charsToCheck = new Set<string>();
         
-        if (ignoreCase) {
-            charsToCheck.add(firstChar.toLowerCase());
-            charsToCheck.add(firstChar.toUpperCase());
-        } else {
-            charsToCheck.add(firstChar);
-        }
+        // Always check both cases
+        charsToCheck.add(firstChar.toLowerCase());
+        charsToCheck.add(firstChar.toUpperCase());
         
         if (ignoreDiacritics) {
             // Add all possible diacritic variations
             for (let [key, value] of this.wordMap.entries()) {
-                let keyFirstChar = TextUtils.maybeLowerCase(key.charAt(0), ignoreCase);
-                if (TextUtils.removeDiacritics(keyFirstChar) === TextUtils.removeDiacritics(firstChar)) {
+                let keyFirstChar = key.charAt(0).toLowerCase();
+                if (TextUtils.removeDiacritics(keyFirstChar) === TextUtils.removeDiacritics(firstChar.toLowerCase())) {
                     charsToCheck.add(key);
                 }
             }

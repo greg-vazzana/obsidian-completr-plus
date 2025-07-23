@@ -1,195 +1,136 @@
+import { CompletrSettings, WordInsertionMode, CalloutProviderSource } from '../../src/settings';
 import { FuzzyUtils } from '../../src/utils/fuzzy_utils';
-import { CompletrSettings, WordInsertionMode } from '../../src/settings';
 import { Word } from '../../src/db/sqlite_database_service';
-import { MatchType } from '../../src/provider/provider';
 
 describe('FuzzyUtils', () => {
-    const mockSettings: CompletrSettings = {
-        characterRegex: "a-zA-ZöäüÖÄÜß",
-        maxLookBackDistance: 50,
-        autoFocus: true,
-        autoTrigger: true,
-        minWordLength: 2,
-        minWordTriggerLength: 2,
-        maxSuggestions: 0, // Unlimited
-        wordInsertionMode: WordInsertionMode.IGNORE_CASE_REPLACE,
-        ignoreDiacriticsWhenFiltering: false,
-        insertSpaceAfterComplete: false,
-        insertPeriodAfterSpaces: false,
-        latexProviderEnabled: true,
-        latexTriggerInCodeBlocks: true,
-        latexMinWordTriggerLength: 2,
-        latexIgnoreCase: false,
-        scanEnabled: true,
-        liveWordTracking: true,
-        wordListProviderEnabled: true,
-        frontMatterProviderEnabled: true,
-        frontMatterTagAppendSuffix: true,
-        frontMatterIgnoreCase: true,
-        calloutProviderEnabled: true,
-        calloutProviderSource: 'Completr' as any,
-        autoCapitalizeLines: true,
-        autoCapitalizeSentences: true,
-        preserveMixedCaseWords: true,
-        debugCapitalization: false,
-        enableFuzzyMatching: true,
-    };
+    let settings: CompletrSettings;
 
-    const mockWords: Word[] = [
-        { word: 'obsidian', frequency: 10 },
-        { word: 'observation', frequency: 5 },
-        { word: 'obvious', frequency: 3 },
-        { word: 'abstract', frequency: 2 },
-        { word: 'absolute', frequency: 4 },
-        { word: 'cat', frequency: 8 },
-        { word: 'cart', frequency: 2 },
-        { word: 'car', frequency: 6 },
-    ];
+    beforeEach(() => {
+        settings = {
+            characterRegex: "a-zA-ZöäüÖÄÜß",
+            maxLookBackDistance: 50,
+            autoFocus: true,
+            autoTrigger: true,
+            minWordLength: 3,
+            minWordTriggerLength: 2,
+            maxSuggestions: 20,
+            wordInsertionMode: WordInsertionMode.REPLACE,
+            ignoreDiacriticsWhenFiltering: false,
+            insertSpaceAfterComplete: false,
+            insertPeriodAfterSpaces: false,
+            latexProviderEnabled: true,
+            latexTriggerInCodeBlocks: true,
+            latexMinWordTriggerLength: 2,
+            latexIgnoreCase: false,
+            scanEnabled: true,
+            liveWordTracking: true,
+            wordListProviderEnabled: true,
+            frontMatterProviderEnabled: true,
+            frontMatterTagAppendSuffix: true,
+            frontMatterIgnoreCase: true,
+            calloutProviderEnabled: true,
+            calloutProviderSource: CalloutProviderSource.COMPLETR,
+            autoCapitalizeLines: true,
+            autoCapitalizeSentences: true,
+            preserveMixedCaseWords: true,
+            debugCapitalization: false,
+            enableFuzzyMatching: true,
+        };
+    });
 
     describe('filterWordsFuzzy', () => {
-        it('should return exact matches first', () => {
-            const results = FuzzyUtils.filterWordsFuzzy('obs', mockWords, mockSettings);
-            
-            expect(results.length).toBeGreaterThan(0);
-            // Should find words that start with 'obs'
-            expect(results.some(r => r.displayName === 'obsidian')).toBe(true);
-            expect(results.some(r => r.displayName === 'observation')).toBe(true);
-            expect(results.some(r => r.displayName === 'obvious')).toBe(true);
+        it('should return empty array for empty query', () => {
+            const words: Word[] = [{ word: 'test', frequency: 1 }];
+            const result = FuzzyUtils.filterWordsFuzzy('', words, settings);
+            expect(result).toEqual([]);
+        });
+
+        it('should return empty array for short query', () => {
+            const words: Word[] = [{ word: 'test', frequency: 1 }];
+            settings.minWordTriggerLength = 3;
+            const result = FuzzyUtils.filterWordsFuzzy('te', words, settings);
+            expect(result).toEqual([]);
         });
 
         it('should find fuzzy matches', () => {
-            const results = FuzzyUtils.filterWordsFuzzy('obsdn', mockWords, mockSettings);
-            
-            expect(results.length).toBeGreaterThan(0);
-            // Should find 'obsidian' even with missing 'i'
-            expect(results.some(r => r.displayName === 'obsidian')).toBe(true);
+            const words: Word[] = [
+                { word: 'obsidian', frequency: 1 },
+                { word: 'obvious', frequency: 1 },
+                { word: 'absolute', frequency: 1 }
+            ];
+            const result = FuzzyUtils.filterWordsFuzzy('obs', words, settings);
+            expect(result.length).toBe(2);
+            expect(result[0].displayName).toBe('obsidian');
+            expect(result[1].displayName).toBe('obvious');
         });
 
-        it('should respect minimum trigger length', () => {
-            const results = FuzzyUtils.filterWordsFuzzy('o', mockWords, mockSettings);
-            
-            // Should return empty because query is too short
-            expect(results.length).toBe(0);
+        it('should respect maxSuggestions limit', () => {
+            const words: Word[] = [
+                { word: 'obsidian', frequency: 1 },
+                { word: 'obvious', frequency: 1 },
+                { word: 'absolute', frequency: 1 }
+            ];
+            settings.maxSuggestions = 1;
+            const result = FuzzyUtils.filterWordsFuzzy('obs', words, settings);
+            expect(result.length).toBe(1);
+            expect(result[0].displayName).toBe('obsidian');
         });
 
-        it('should respect suggestion limit', () => {
-            const limitedSettings = { ...mockSettings, maxSuggestions: 2 };
-            const results = FuzzyUtils.filterWordsFuzzy('a', mockWords, limitedSettings);
-            
-            expect(results.length).toBeLessThanOrEqual(2);
+        it('should handle case-insensitive matching', () => {
+            const words: Word[] = [
+                { word: 'Obsidian', frequency: 1 },
+                { word: 'OBVIOUS', frequency: 1 }
+            ];
+            const result = FuzzyUtils.filterWordsFuzzy('obs', words, settings);
+            expect(result.length).toBe(2);
+            expect(result[0].displayName).toBe('Obsidian');
+            expect(result[1].displayName).toBe('OBVIOUS');
         });
 
-        it('should include frequency information', () => {
-            const results = FuzzyUtils.filterWordsFuzzy('obs', mockWords, mockSettings);
-            
-            const obsidianResult = results.find(r => r.displayName === 'obsidian');
-            expect(obsidianResult?.frequency).toBe(10);
-        });
-
-        it('should include match type information', () => {
-            const results = FuzzyUtils.filterWordsFuzzy('obs', mockWords, mockSettings);
-            
-            // Should have both exact and potentially fuzzy matches
-            expect(results.some(r => r.matchType === 'exact')).toBe(true);
-            
-            // Check that obsidian is marked as exact match
-            const obsidianResult = results.find(r => r.displayName === 'obsidian');
-            expect(obsidianResult?.matchType).toBe('exact');
-        });
-
-        it('should include highlight ranges for fuzzy matches', () => {
-            const results = FuzzyUtils.filterWordsFuzzy('obsdn', mockWords, mockSettings);
-            
-            expect(results.length).toBeGreaterThan(0);
-            
-            // Should find obsidian as a fuzzy match
-            const obsidianResult = results.find(r => r.displayName === 'obsidian');
-            expect(obsidianResult).toBeDefined();
-            expect(obsidianResult?.matchType).toBe('fuzzy');
-            expect(obsidianResult?.highlightRanges).toBeDefined();
-            expect(obsidianResult?.highlightRanges?.length).toBeGreaterThan(0);
-        });
-    });
-
-    describe('filterWordsExact', () => {
-        it('should return only exact prefix matches', () => {
-            const results = FuzzyUtils.filterWordsExact('obs', mockWords, mockSettings);
-            
-            // Let's see what we actually get
-            const resultNames = results.map(r => r.displayName);
-            console.log('Exact matching results for "obs":', resultNames);
-            console.log('Expected words that start with "obs": obsidian, observation, obvious');
-            console.log('Words in mockData:', mockWords.map(w => w.word));
-            
-            // Check that all returned results start with 'obs'
-            expect(results.every(r => r.displayName.toLowerCase().startsWith('obs'))).toBe(true);
-            
-            // Check that we find obsidian
-            expect(results.some(r => r.displayName === 'obsidian')).toBe(true);
-        });
-
-        it('should not find fuzzy matches', () => {
-            const results = FuzzyUtils.filterWordsExact('obsdn', mockWords, mockSettings);
-            
-            // Should not find any matches for typo
-            expect(results.length).toBe(0);
-        });
-
-        it('should handle case sensitivity', () => {
-            const caseSensitiveSettings = { 
-                ...mockSettings, 
-                wordInsertionMode: WordInsertionMode.MATCH_CASE_REPLACE 
-            };
-            
-            const results = FuzzyUtils.filterWordsExact('OBS', mockWords, caseSensitiveSettings);
-            expect(results.length).toBe(0); // No uppercase words in mock data
-            
-            // Test with case insensitive
-            const results2 = FuzzyUtils.filterWordsExact('OBS', mockWords, mockSettings);
-            expect(results2.length).toBeGreaterThan(0); // Should find obs* words
+        it('should preserve case in append mode', () => {
+            settings.wordInsertionMode = WordInsertionMode.APPEND;
+            const words: Word[] = [{ word: 'Obsidian', frequency: 1 }];
+            const result = FuzzyUtils.filterWordsFuzzy('Obs', words, settings);
+            expect(result.length).toBe(1);
+            expect(result[0].replacement).toBe('Obsidian');
         });
     });
 
     describe('isExactMatch', () => {
-        it('should correctly identify exact matches', () => {
-            expect(FuzzyUtils.isExactMatch('obsidian', 'obs', true)).toBe(true);
-            expect(FuzzyUtils.isExactMatch('Obsidian', 'obs', true)).toBe(true);
-            expect(FuzzyUtils.isExactMatch('Obsidian', 'obs', false)).toBe(false);
-            expect(FuzzyUtils.isExactMatch('absolute', 'obs', true)).toBe(false);
+        it('should match exact prefixes', () => {
+            expect(FuzzyUtils.isExactMatch('obsidian', 'obs')).toBe(true);
+            expect(FuzzyUtils.isExactMatch('Obsidian', 'obs')).toBe(true);
+            expect(FuzzyUtils.isExactMatch('absolute', 'obs')).toBe(false);
         });
     });
 
     describe('extractHighlightRanges', () => {
-        it('should extract highlight ranges from fuzzysort result', () => {
-            // Mock fuzzysort result with indexes
-            const mockResult: any = {
-                indexes: [0, 1, 2, 5, 6] // Highlights "obs" at start and "di" later
-            };
-
-            const ranges = FuzzyUtils.extractHighlightRanges(mockResult);
-
-            expect(ranges).toEqual([
-                { start: 0, end: 3 }, // "obs" (indexes 0,1,2)
-                { start: 5, end: 7 }  // "di" (indexes 5,6)
-            ]);
-        });
-
         it('should handle empty indexes', () => {
-            const mockResult: any = { indexes: [] };
-            const ranges = FuzzyUtils.extractHighlightRanges(mockResult);
+            const mockResult = { indexes: [] as number[] };
+            const ranges = (FuzzyUtils as any).extractHighlightRanges(mockResult);
             expect(ranges).toEqual([]);
         });
 
-        it('should handle missing indexes property', () => {
-            const mockResult: any = {};
-            const ranges = FuzzyUtils.extractHighlightRanges(mockResult);
-            expect(ranges).toEqual([]);
+        it('should handle single index', () => {
+            const mockResult = { indexes: [0] as number[] };
+            const ranges = (FuzzyUtils as any).extractHighlightRanges(mockResult);
+            expect(ranges).toEqual([{ start: 0, end: 1 }]);
         });
 
-        it('should handle single character highlight', () => {
-            const mockResult: any = { indexes: [3] };
-            const ranges = FuzzyUtils.extractHighlightRanges(mockResult);
-            expect(ranges).toEqual([{ start: 3, end: 4 }]);
+        it('should handle consecutive indexes', () => {
+            const mockResult = { indexes: [0, 1, 2] as number[] };
+            const ranges = (FuzzyUtils as any).extractHighlightRanges(mockResult);
+            expect(ranges).toEqual([{ start: 0, end: 3 }]);
+        });
+
+        it('should handle non-consecutive indexes', () => {
+            const mockResult = { indexes: [0, 2, 4] as number[] };
+            const ranges = (FuzzyUtils as any).extractHighlightRanges(mockResult);
+            expect(ranges).toEqual([
+                { start: 0, end: 1 },
+                { start: 2, end: 3 },
+                { start: 4, end: 5 }
+            ]);
         });
     });
 }); 

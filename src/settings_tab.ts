@@ -131,12 +131,11 @@ export default class CompletrSettingsTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName("Word insertion mode")
-            .setDesc("The insertion mode that is used. Ignore-case would suggest 'Hello' if the typed text is 'hello', match-case would not. " +
-                "Append would complete 'Hell' with 'Hello' while replace would complete it with 'hello' instead (if only 'hello' was a known word). Only used by the file scanner and word list provider.")
+            .setDesc("How suggestions are inserted. 'Replace word' replaces the entire word while preserving case (e.g., 'Cor' → 'Corporate'). " +
+                "'Complete word' appends only the missing letters (e.g., 'Cor' → 'Corporate' by adding 'porate').")
             .addDropdown(dropdown => dropdown
-                .addOption(WordInsertionMode.IGNORE_CASE_REPLACE, WordInsertionMode.IGNORE_CASE_REPLACE)
-                .addOption(WordInsertionMode.IGNORE_CASE_APPEND, WordInsertionMode.IGNORE_CASE_APPEND)
-                .addOption(WordInsertionMode.MATCH_CASE_REPLACE, WordInsertionMode.MATCH_CASE_REPLACE)
+                .addOption(WordInsertionMode.REPLACE, WordInsertionMode.REPLACE)
+                .addOption(WordInsertionMode.APPEND, WordInsertionMode.APPEND)
                 .setValue(this.plugin.settings.wordInsertionMode)
                 .onChange(async val => {
                     this.plugin.settings.wordInsertionMode = val as WordInsertionMode;
