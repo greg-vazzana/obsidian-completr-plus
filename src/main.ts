@@ -605,9 +605,11 @@ export default class CompletrPlugin extends Plugin {
             
             // Configure NLP capitalizer with current settings
             this.nlpCapitalizer.updateConfig({
+                enabled: this.settings.autoCapitalizeLines || this.settings.autoCapitalizeSentences,
                 capitalizeLines: this.settings.autoCapitalizeLines,
                 capitalizeSentences: this.settings.autoCapitalizeSentences,
                 preserveMixedCase: this.settings.preserveMixedCaseWords,
+                respectSpecialContexts: true, // Always respect special contexts
                 debug: this.settings.debugCapitalization
             });
         } catch (error) {
@@ -655,9 +657,11 @@ export default class CompletrPlugin extends Plugin {
         // Update all components with new settings
         this.liveWordTracker.updateSettings(this.settings);
         this.nlpCapitalizer.updateConfig({
+            enabled: this.settings.autoCapitalizeLines || this.settings.autoCapitalizeSentences,
             capitalizeLines: this.settings.autoCapitalizeLines,
             capitalizeSentences: this.settings.autoCapitalizeSentences,
             preserveMixedCase: this.settings.preserveMixedCaseWords,
+            respectSpecialContexts: true, // Always respect special contexts
             debug: this.settings.debugCapitalization
         });
     }

@@ -14,7 +14,7 @@ jest.mock('compromise', () => ({
   }))
 }));
 
-import NLPCapitalizer, { NLPCapitalizationConfig } from '../src/nlp_capitalizer';
+import NLPCapitalizer, { CapitalizationConfig } from '../src/nlp_capitalizer';
 import { Editor, EditorPosition } from 'obsidian';
 
 // Mock Editor interface
@@ -84,10 +84,12 @@ describe('NLPCapitalizer', () => {
     });
 
     it('should accept custom configuration', () => {
-      const customConfig: Partial<NLPCapitalizationConfig> = {
+      const customConfig: Partial<CapitalizationConfig> = {
+        enabled: true,
         capitalizeLines: false,
         capitalizeSentences: true,
         preserveMixedCase: false,
+        respectSpecialContexts: false,
         debug: true
       };
       

@@ -150,7 +150,7 @@ export default class NLPCapitalizer {
             }
             lines.push(currentLine);
         }
-
+        
         return {
             line,
             fullText: lines.join('\n'),
@@ -188,8 +188,8 @@ export default class NLPCapitalizer {
      * Performs intelligent capitalization based on analysis
      */
     private performIntelligentCapitalization(
-        editor: Editor,
-        cursor: EditorPosition,
+        editor: Editor, 
+        cursor: EditorPosition, 
         context: CapitalizationContext, 
         analysis: ContextAnalysis,
         trigger: string
@@ -236,20 +236,12 @@ export default class NLPCapitalizer {
     /**
      * Finds line-level capitalization opportunity
      */
-        private findLineCapitalizationOpportunity(line: string, cursor: EditorPosition): CapitalizationOpportunity | null {
+    private findLineCapitalizationOpportunity(line: string, cursor: EditorPosition): CapitalizationOpportunity | null {
         const firstWord = this.findFirstWordOnLine(line);
         if (!firstWord) return null;
 
         // Only capitalize if cursor is at or after the word
         if (cursor.ch < firstWord.endIndex) return null;
-
-        // Check if the line contains special patterns that should prevent capitalization
-        if (this.config.respectSpecialContexts) {
-            // For line capitalization, only check if the first word itself is in a special context
-            // Don't let patterns elsewhere in the line prevent line capitalization
-            const hasSpecialContext = TextAnalyzer.isInSpecialContext(line, firstWord.startIndex);
-            if (hasSpecialContext) return null;
-        }
 
         if (!this.shouldCapitalizeWord(firstWord.word)) return null;
 
@@ -290,10 +282,6 @@ export default class NLPCapitalizer {
                     sentence, context, cursor
                 );
                 if (sentenceOpportunity) {
-                    // Don't capitalize the first word of a line if line capitalization is disabled
-                    if (!this.config.capitalizeLines && sentenceOpportunity.position.startCh === 0) {
-                        continue;
-                    }
                     opportunities.push(sentenceOpportunity);
                 }
             }
@@ -375,7 +363,7 @@ export default class NLPCapitalizer {
         };
 
         editor.replaceRange(opportunity.capitalizedWord, startPos, endPos);
-        
+
         if (this.config.debug) {
             console.log(`NLPCapitalizer: Applied ${opportunity.type} capitalization`, {
                 original: opportunity.word,
@@ -444,7 +432,7 @@ export default class NLPCapitalizer {
             // Only capitalize first letter, preserve the rest
             return word.charAt(0).toUpperCase() + word.slice(1);
         }
-
+        
         return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
     }
 
@@ -458,7 +446,7 @@ export default class NLPCapitalizer {
     static isSentenceEndTrigger(char: string): boolean {
         return /[.!?]/.test(char);
     }
-} 
+}
 
 /**
  * Supporting interfaces
