@@ -140,7 +140,7 @@ describe('NLPCapitalizer Integration Tests', () => {
     });
 
     it('should capitalize at line start even with ellipses present', () => {
-      // Test line capitalization with ellipses present - this should work
+      // Should work with normal settings - ellipses later in line shouldn't prevent line capitalization
       mockEditor = createMockEditor(['thinking... maybe not']);
       const cursor: EditorPosition = { line: 0, ch: 8 }; // after "thinking"
       
@@ -298,16 +298,27 @@ describe('NLPCapitalizer Integration Tests', () => {
     });
 
     it('should handle markdown with special content', () => {
-      const content = '# my iPhone Setup\n\n- visit https://apple.com\n- email support@apple.com\n- use `git clone` command';
-      const lines = content.split('\n');
+      const lines = [
+        '# my iPhone Setup',
+        '',
+        '- visit https://apple.com',
+        '- email support@apple.com',  
+        '- use `git clone` command'
+      ];
       mockEditor = createMockEditor(lines);
       
-      // Simulate typing through the content
-      for (let line = 0; line < lines.length; line++) {
-        const lineLength = mockEditor.getLine(line).length;
-        const cursor: EditorPosition = { line, ch: lineLength };
-        capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
-      }
+      // Simulate typing after each first word to trigger capitalization
+      // Line 0: "# my iPhone Setup" - cursor after "my"
+      capitalizer.attemptCapitalization(mockEditor, { line: 0, ch: 4 }, ' ');
+      
+      // Line 2: "- visit https://apple.com" - cursor after "visit"
+      capitalizer.attemptCapitalization(mockEditor, { line: 2, ch: 7 }, ' ');
+      
+      // Line 3: "- email support@apple.com" - cursor after "email"  
+      capitalizer.attemptCapitalization(mockEditor, { line: 3, ch: 7 }, ' ');
+      
+      // Line 4: "- use `git clone` command" - cursor after "use"
+      capitalizer.attemptCapitalization(mockEditor, { line: 4, ch: 5 }, ' ');
       
       const result = mockEditor.getValue();
       expect(result).toContain('# My iPhone Setup');

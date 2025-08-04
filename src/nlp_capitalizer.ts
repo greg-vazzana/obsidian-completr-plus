@@ -108,12 +108,15 @@ export default class NLPCapitalizer {
         const context = this.getOptimizedContext(editor, cursor);
         const analysis = this.getContextAnalysis(context, cursor);
 
-        // Skip if in special context and respect is enabled
+        // Skip if cursor is actually within a special context (not just if special patterns exist elsewhere)
         if (this.config.respectSpecialContexts && analysis.shouldSkipCapitalization) {
-            if (this.config.debug) {
-                console.log('NLPCapitalizer: Skipping - in special context:', analysis.reason);
+            // Only skip if the pattern that's blocking is not ellipses (ellipses shouldn't prevent all capitalization)
+            if (analysis.reason && analysis.reason !== 'ellipses') {
+                if (this.config.debug) {
+                    console.log('NLPCapitalizer: Skipping - in special context:', analysis.reason);
+                }
+                return;
             }
-            return;
         }
 
         // Try capitalization based on context
@@ -243,12 +246,18 @@ export default class NLPCapitalizer {
         // Only capitalize if cursor is at or after the word
         if (cursor.ch < firstWord.endIndex) return null;
 
-        // Check if the line contains special patterns that should prevent capitalization
+        // Check if the first word itself is in a special context (like within a URL)
         if (this.config.respectSpecialContexts) {
             // For line capitalization, only check if the first word itself is in a special context
             // Don't let patterns elsewhere in the line prevent line capitalization
-            const hasSpecialContext = TextAnalyzer.isInSpecialContext(line, firstWord.startIndex);
-            if (hasSpecialContext) return null;
+            const patterns = TextAnalyzer['findAllPatterns'](line);
+            const wordIsInPattern = patterns.some(pattern => 
+                firstWord.startIndex >= pattern.start && 
+                firstWord.startIndex < pattern.end &&
+                // Ellipses should not prevent line capitalization
+                pattern.type !== 'ellipses'
+            );
+            if (wordIsInPattern) return null;
         }
 
         if (!this.shouldCapitalizeWord(firstWord.word)) return null;
