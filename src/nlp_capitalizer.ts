@@ -132,14 +132,16 @@ export default class NLPCapitalizer {
     }
 
     /**
-     * Gets optimized context for analysis - minimal text scope for performance
+     * Gets optimized context for analysis - expanded scope for code block detection
      */
     private getOptimizedContext(editor: Editor, cursor: EditorPosition): CapitalizationContext {
         const line = editor.getLine(cursor.line);
         
-        // For performance, limit context to current line + minimal surrounding lines
-        const startLine = Math.max(0, cursor.line - 1);
-        const endLine = Math.min(editor.lastLine(), cursor.line + 1);
+        // Expand context window to better detect fenced code blocks and other multi-line patterns
+        // Look back further to find opening ``` and forward to find closing ```
+        const maxContextLines = 10; // Reasonable limit for performance
+        const startLine = Math.max(0, cursor.line - maxContextLines);
+        const endLine = Math.min(editor.lastLine(), cursor.line + maxContextLines);
         
         const lines: string[] = [];
         let absolutePosition = 0;
@@ -260,9 +262,9 @@ export default class NLPCapitalizer {
             if (wordIsInPattern) return null;
         }
 
-        if (!this.shouldCapitalizeWord(firstWord.word)) return null;
+        if (!this.shouldCapitalizeWord(firstWord.word, line)) return null;
 
-        const capitalizedWord = this.capitalizeWord(firstWord.word);
+        const capitalizedWord = this.capitalizeWord(firstWord.word, line);
         if (capitalizedWord === firstWord.word) return null;
 
         return {
@@ -272,7 +274,7 @@ export default class NLPCapitalizer {
             position: {
                 line: cursor.line,
                 startCh: firstWord.startIndex,
-                endCh: firstWord.endIndex
+                endCh: firstWord.startIndex + firstWord.word.length // Use original word length for accurate replacement
             }
         };
     }
@@ -333,9 +335,9 @@ export default class NLPCapitalizer {
         if (!firstTerm.found) return null;
 
         const firstWord = firstTerm.text().replace(/[^\w]/g, '');
-        if (!this.shouldCapitalizeWord(firstWord)) return null;
+        if (!this.shouldCapitalizeWord(firstWord, context.fullText)) return null;
 
-        const capitalizedWord = this.capitalizeWord(firstWord);
+        const capitalizedWord = this.capitalizeWord(firstWord, context.fullText);
         if (capitalizedWord === firstWord) return null;
 
         // Find position in editor
@@ -366,7 +368,7 @@ export default class NLPCapitalizer {
         return {
             line: cursor.line,
             startCh: match.index,
-            endCh: match.index + word.length
+            endCh: match.index + word.length // Using original word length for accurate replacement boundaries
         };
     }
 
@@ -422,9 +424,17 @@ export default class NLPCapitalizer {
     /**
      * Determines if a word should be capitalized
      */
-    private shouldCapitalizeWord(word: string): boolean {
+    private shouldCapitalizeWord(word: string, context?: string): boolean {
         if (!word || word.length === 0) return false;
         if (!/[\p{L}\d]/u.test(word)) return false;
+
+        // Enhanced logic: Use entity recognition if context is available
+        if (context && this.config.respectSpecialContexts) {
+            // Check if this is a proper noun that should be capitalized with specific rules
+            if (TextAnalyzer.shouldCapitalizeAsProperNoun(word, context)) {
+                return true; // Always capitalize proper nouns
+            }
+        }
 
         // Don't capitalize mixed-case words if preserveMixedCase is enabled
         if (this.config.preserveMixedCase && this.isMixedCaseWord(word)) {
@@ -446,8 +456,20 @@ export default class NLPCapitalizer {
     /**
      * Capitalizes a word (first letter uppercase, rest unchanged for mixed case preservation)
      */
-    private capitalizeWord(word: string): string {
+    private capitalizeWord(word: string, context?: string): string {
         if (word.length === 0) return word;
+        
+        // Enhanced logic: Try intelligent capitalization first, but respect user settings
+        if (context && this.config.respectSpecialContexts) {
+            const intelligentCapitalization = TextAnalyzer.getIntelligentCapitalization(word, context);
+            if (intelligentCapitalization) {
+                // Only use intelligent capitalization if it doesn't conflict with preserveMixedCase setting
+                if (this.config.preserveMixedCase || !this.isMixedCaseWord(intelligentCapitalization)) {
+                    return intelligentCapitalization; // Use entity/brand-specific capitalization
+                }
+                // If preserveMixedCase is disabled and this would create mixed case, fall through to default logic
+            }
+        }
         
         if (this.config.preserveMixedCase && this.isMixedCaseWord(word)) {
             // Only capitalize first letter, preserve the rest
