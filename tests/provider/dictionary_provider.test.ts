@@ -103,5 +103,84 @@ describe('DictionaryProvider', () => {
             expect(result).toHaveLength(1);
             expect(result[0].replacement).toBe('hello');
         });
+
+        describe('exact matching (case-sensitive)', () => {
+            beforeEach(() => {
+                settings.enableFuzzyMatching = false; // Enable case-sensitive exact matching
+            });
+
+            it('should perform case-sensitive exact matching', () => {
+                const wordMap1 = new Map<string, Word>();
+                wordMap1.set('Hello', { word: 'Hello', frequency: 1 });
+                provider.wordMap.set('H', wordMap1);
+
+                const wordMap2 = new Map<string, Word>();
+                wordMap2.set('hello', { word: 'hello', frequency: 1 });
+                provider.wordMap.set('h', wordMap2);
+
+                // Query 'He' should match 'Hello' but not 'hello'
+                const result1 = provider.getSuggestions(createContext('He'), settings);
+                expect(result1).toHaveLength(1);
+                expect(result1[0].displayName).toBe('Hello');
+
+                // Query 'he' should match 'hello' but not 'Hello'
+                const result2 = provider.getSuggestions(createContext('he'), settings);
+                expect(result2).toHaveLength(1);
+                expect(result2[0].displayName).toBe('hello');
+            });
+
+            it('should not match when case differs', () => {
+                const wordMap = new Map<string, Word>();
+                wordMap.set('Hello', { word: 'Hello', frequency: 1 });
+                provider.wordMap.set('H', wordMap);
+
+                // Lowercase query should not match uppercase word
+                const result = provider.getSuggestions(createContext('he'), settings);
+                expect(result).toHaveLength(0);
+            });
+
+            it('should match exact case patterns', () => {
+                const wordMapJ = new Map<string, Word>();
+                wordMapJ.set('JavaScript', { word: 'JavaScript', frequency: 1 });
+                provider.wordMap.set('J', wordMapJ);
+
+                const wordMapj = new Map<string, Word>();
+                wordMapj.set('java', { word: 'java', frequency: 1 });
+                provider.wordMap.set('j', wordMapj);
+
+                // 'Java' should match 'JavaScript' but not 'java'
+                const result1 = provider.getSuggestions(createContext('Java'), settings);
+                expect(result1).toHaveLength(1);
+                expect(result1[0].displayName).toBe('JavaScript');
+
+                // 'java' should match 'java' but not 'JavaScript'
+                const result2 = provider.getSuggestions(createContext('java'), settings);
+                expect(result2).toHaveLength(1);
+                expect(result2[0].displayName).toBe('java');
+            });
+        });
+
+        describe('fuzzy matching (case-insensitive)', () => {
+            beforeEach(() => {
+                settings.enableFuzzyMatching = true; // Use fuzzy matching
+            });
+
+            it('should remain case-insensitive in fuzzy mode', () => {
+                const wordMap1 = new Map<string, Word>();
+                wordMap1.set('Hello', { word: 'Hello', frequency: 1 });
+                provider.wordMap.set('H', wordMap1);
+
+                const wordMap2 = new Map<string, Word>();
+                wordMap2.set('hello', { word: 'hello', frequency: 1 });
+                provider.wordMap.set('h', wordMap2);
+
+                // Both should match regardless of case in fuzzy mode
+                const result = provider.getSuggestions(createContext('he'), settings);
+                expect(result.length).toBeGreaterThanOrEqual(2);
+                const displayNames = result.map(s => s.displayName);
+                expect(displayNames).toContain('Hello');
+                expect(displayNames).toContain('hello');
+            });
+        });
     });
 }); 

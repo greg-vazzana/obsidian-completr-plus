@@ -33,14 +33,16 @@ export abstract class DictionaryProvider implements SuggestionProvider {
     }
 
     private getExactSuggestions(context: SuggestionContext, settings: CompletrSettings): Suggestion[] {
-        // Use the original exact matching logic
+        // Use case-sensitive exact matching logic
         const firstChar = context.query.charAt(0);
-
-        // Always use case-insensitive matching, we'll preserve case when replacing
-        let query = context.query.toLowerCase();
+        const query = context.query; // Keep original case for case-sensitive matching
+        
+        // For diacritics handling, we need to work with both original and processed queries
         const ignoreDiacritics = settings.ignoreDiacriticsWhenFiltering;
-        if (ignoreDiacritics)
-            query = TextUtils.removeDiacritics(query);
+        let queryForLowerCaseCheck = query.toLowerCase();
+        if (ignoreDiacritics) {
+            queryForLowerCaseCheck = TextUtils.removeDiacritics(queryForLowerCaseCheck);
+        }
 
         // Always check both lowercase and uppercase maps
         const wordMaps = [
@@ -64,18 +66,27 @@ export abstract class DictionaryProvider implements SuggestionProvider {
         for (let wordMap of wordMaps) {
             TextUtils.filterMapIntoArray(result, wordMap.values(),
                 wordObj => {
-                    let match = wordObj.word.toLowerCase();
-                    if (ignoreDiacritics)
-                        match = TextUtils.removeDiacritics(match);
-                    return match.startsWith(query);
+                    // First do a case-insensitive check to see if it could potentially match
+                    let matchForBasicCheck = wordObj.word.toLowerCase();
+                    if (ignoreDiacritics) {
+                        matchForBasicCheck = TextUtils.removeDiacritics(matchForBasicCheck);
+                    }
+                    
+                    // Basic lowercase matching check (for performance - eliminates obvious non-matches)
+                    if (!matchForBasicCheck.startsWith(queryForLowerCaseCheck)) {
+                        return false;
+                    }
+                    
+                    // Case-sensitive exact match: check if the case pattern matches exactly
+                    return this.doesCasePatternMatch(wordObj.word, query);
                 },
                 wordObj => {
                     const suggestion = settings.wordInsertionMode === WordInsertionMode.APPEND
-                        ? Suggestion.fromString(context.query + wordObj.word.substring(query.length))
+                        ? Suggestion.fromString(query + wordObj.word.substring(query.length))
                         : new Suggestion(wordObj.word, wordObj.word, undefined, undefined, {
                             frequency: wordObj.frequency > 1 ? wordObj.frequency : undefined,
                             matchType: 'exact',
-                            originalQueryCase: context.query // Track original query case
+                            originalQueryCase: query // Track original query case
                         });
                     (suggestion as any).rating = wordObj.frequency * 1000 - wordObj.word.length;
                     
@@ -90,6 +101,26 @@ export abstract class DictionaryProvider implements SuggestionProvider {
         return settings.maxSuggestions > 0 
             ? sortedResults.slice(0, settings.maxSuggestions)
             : sortedResults;
+    }
+
+    /**
+     * Checks if the case pattern of the query matches the beginning of the word
+     * For case-sensitive exact matching
+     */
+    private doesCasePatternMatch(word: string, query: string): boolean {
+        // If query is longer than word, it can't match
+        if (query.length > word.length) {
+            return false;
+        }
+        
+        // Check each character's case matches exactly
+        for (let i = 0; i < query.length; i++) {
+            if (word.charAt(i) !== query.charAt(i)) {
+                return false;
+            }
+        }
+        
+        return true;
     }
 
     private collectWordsForQuery(query: string, settings: CompletrSettings): Word[] {
