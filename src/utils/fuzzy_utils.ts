@@ -100,60 +100,6 @@ export class FuzzyUtils {
     }
 
     /**
-     * Filter words using traditional startsWith matching
-     * @param query - The search query
-     * @param words - Array of word objects to search through
-     * @param settings - Plugin settings
-     * @returns Array of suggestions using exact matching
-     */
-    static filterWordsExact(
-        query: string, 
-        words: Word[], 
-        settings: CompletrSettings
-    ): Suggestion[] {
-        if (!query || query.length < settings.minWordTriggerLength) {
-            return [];
-        }
-
-        // Always use case-insensitive matching
-        const queryLower = query.toLowerCase();
-        const results: Suggestion[] = [];
-        
-        for (const word of words) {
-            const wordToCheck = word.word.toLowerCase();
-            
-            if (wordToCheck.startsWith(queryLower)) {
-                let suggestionText: string;
-                
-                if (settings.wordInsertionMode === WordInsertionMode.APPEND) {
-                    suggestionText = query + word.word.substring(query.length);
-                } else {
-                    suggestionText = word.word;
-                }
-                
-                const suggestion = new Suggestion(suggestionText, suggestionText, undefined, undefined, {
-                    frequency: word.frequency > 1 ? word.frequency : undefined,
-                    matchType: 'exact',
-                    originalQueryCase: query // Track original query case
-                });
-                
-                // Calculate rating for exact matches
-                (suggestion as any).rating = word.frequency * 1000 - word.word.length;
-                
-                results.push(suggestion);
-            }
-        }
-
-        // Sort by rating (frequency-based)
-        results.sort((a, b) => (b as any).rating - (a as any).rating);
-        
-        // Apply limit if specified
-        return settings.maxSuggestions > 0 
-            ? results.slice(0, settings.maxSuggestions)
-            : results;
-    }
-
-    /**
      * Extract highlight ranges from a fuzzysort result
      */
     private static extractHighlightRanges(result: any): HighlightRange[] {
