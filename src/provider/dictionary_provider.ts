@@ -170,21 +170,28 @@ export abstract class DictionaryProvider implements SuggestionProvider {
      * @returns A numeric rating (higher is better)
      */
     private calculateExactMatchRating(word: string, query: string, frequency: number): number {
-        // Base scores
-        const frequencyScore = frequency * WORD_FREQUENCY_RATING_MULTIPLIER;
-        const lengthPenalty = word.length;
+        // 1. Frequency component (0-40 points) - cap at frequency 100 for normalization
+        const frequencyScore = Math.min(40, (frequency / 100) * 40);
         
-        // Case matching bonus (higher is better)
-        const caseBonus = this.calculateCaseMatchBonus(word, query);
+        // 2. Case matching component (0-15 points)
+        const rawCaseBonus = this.calculateCaseMatchBonus(word, query);
+        // Normalize case bonus: range is roughly -50 to +500, so shift and scale
+        const caseScore = Math.min(15, Math.max(0, (rawCaseBonus + 50) / 550 * 15));
         
-        // Prefix completion bonus (how much of the word is completed)
+        // 3. Completion progress component (0-20 points)
         const completionRatio = query.length / word.length;
-        const completionBonus = completionRatio * 500; // Up to 500 points for full matches
+        const completionScore = completionRatio * 20;
         
-        // Word length efficiency (prefer shorter words, but not too aggressively)
-        const lengthEfficiency = Math.max(0, 50 - (word.length - query.length));
+        // 4. Length efficiency component (0-10 points)
+        const lengthDiff = word.length - query.length;
+        const efficiencyScore = Math.min(10, Math.max(0, (50 - lengthDiff) / 50 * 10));
         
-        return frequencyScore + caseBonus + completionBonus + lengthEfficiency - lengthPenalty;
+        // 5. Word length quality component (0-10 points) - prefer shorter words
+        const lengthScore = Math.min(10, Math.max(0, (50 - word.length) / 47 * 10));
+        
+        // Final score (0-100)
+        const totalScore = frequencyScore + caseScore + completionScore + efficiencyScore + lengthScore;
+        return Math.min(100, Math.max(0, totalScore));
     }
 
     /**

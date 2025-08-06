@@ -175,7 +175,8 @@ export default class SuggestionPopup extends EditorSuggest<Suggestion> {
         if (score != null) {
             const scoreBadge = el.doc.createElement("div");
             scoreBadge.addClass("completr-frequency-badge");
-            scoreBadge.setText(Math.round(score).toString());
+            // Score is already normalized to 0-100, just format as percentage
+            scoreBadge.setText(score.toFixed(1) + "%");
             el.appendChild(scoreBadge);
         }
     }

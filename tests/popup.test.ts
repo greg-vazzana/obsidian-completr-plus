@@ -505,8 +505,8 @@ describe('SuggestionPopup', () => {
         displayName: 'Frequent',
         frequency: 5
       });
-      // Add rating/score to the suggestion
-      (suggestion as any).rating = 5234.7;
+      // Add rating/score to the suggestion (0-100 scale)
+      (suggestion as any).rating = 78.5;
       const element = createMockElement();
       
       popup.renderSuggestion(suggestion, element);
@@ -514,7 +514,7 @@ describe('SuggestionPopup', () => {
       expect(element.children).toHaveLength(2); // content + badge
       const badge = element.children[1];
       expect(badge.addClass).toHaveBeenCalledWith('completr-frequency-badge');
-      expect(badge.setText).toHaveBeenCalledWith('5235'); // rounded score
+      expect(badge.setText).toHaveBeenCalledWith('78.5%'); // formatted as percentage
     });
 
     it('should not render score badge when no score exists', () => {

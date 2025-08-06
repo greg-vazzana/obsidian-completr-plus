@@ -289,7 +289,8 @@ describe('DictionaryProvider', () => {
                 const lowFreq = provider.testCalculateExactMatchRating('test', 'te', 1);
                 
                 expect(highFreq).toBeGreaterThan(lowFreq);
-                expect(highFreq - lowFreq).toBeGreaterThan(90000); // ~99,000 point difference
+                // In 0-100 system, high freq gets 40 points, low freq gets ~0.4 points
+                expect(highFreq - lowFreq).toBeGreaterThan(35); // Significant difference
             });
 
             it('should reward perfect case matches', () => {
@@ -304,10 +305,10 @@ describe('DictionaryProvider', () => {
                 const lessComplete = provider.testCalculateExactMatchRating('test', 'te', 5);   // 2/4 = 50%
                 
                 expect(moreComplete).toBeGreaterThan(lessComplete);
-                // Should differ by ~125 points (25% * 500), but allow for other factors
+                // Should differ by ~5 points (25% * 20), but allow for other factors
                 const difference = moreComplete - lessComplete;
-                expect(difference).toBeGreaterThan(100); // At least 100 point difference
-                expect(difference).toBeLessThan(200); // But not too much more
+                expect(difference).toBeGreaterThan(3); // At least 3 point difference
+                expect(difference).toBeLessThan(8); // But not too much more
             });
 
             it('should apply length efficiency bonus', () => {
@@ -347,7 +348,7 @@ describe('DictionaryProvider', () => {
                 
                 // The rating should include the camelCase bonus
                 const rating = provider.testCalculateExactMatchRating(camelCaseWord, camelCaseQuery, 5);
-                expect(rating).toBeGreaterThan(5000); // Should include frequency and bonuses
+                expect(rating).toBeGreaterThan(5); // Should include frequency and bonuses in 0-100 scale
             });
 
             it('should give bonus for PascalCase matches', () => {
@@ -360,7 +361,7 @@ describe('DictionaryProvider', () => {
                 
                 // The rating should include the PascalCase bonus
                 const rating = provider.testCalculateExactMatchRating(pascalCaseWord, pascalCaseQuery, 5);
-                expect(rating).toBeGreaterThan(5000); // Should include frequency and bonuses
+                expect(rating).toBeGreaterThan(5); // Should include frequency and bonuses in 0-100 scale
             });
         });
 

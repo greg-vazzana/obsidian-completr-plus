@@ -58,13 +58,24 @@ export class FuzzyUtils {
                 originalQueryCase: query // Track original query case
             });
             
-            // Calculate combined rating: fuzzysort score + frequency boost - length penalty
+            // Calculate normalized rating (0-100) for fuzzy matches
             const fuzzyScore = result.score;
-            const frequencyBoost = word.frequency * WORD_FREQUENCY_RATING_MULTIPLIER;
-            const lengthPenalty = word.word.length;
+            
+            // 1. Frequency component (0-40 points) - cap at frequency 100 for normalization
+            const frequencyScore = Math.min(40, (word.frequency / 100) * 40);
+            
+            // 2. Fuzzy match quality component (0-35 points)
+            // fuzzysort scores are negative, closer to 0 is better, typical range is -1000 to 0
+            const fuzzyQuality = Math.min(35, Math.max(0, (fuzzyScore + 1000) / 1000 * 35));
+            
+            // 3. Word length quality component (0-25 points) - prefer shorter words
+            const lengthScore = Math.min(25, Math.max(0, (50 - word.word.length) / 47 * 25));
+            
+            // Final normalized score (0-100)
+            const totalScore = frequencyScore + fuzzyQuality + lengthScore;
             
             // Store the combined rating for sorting
-            (suggestion as any).rating = fuzzyScore + frequencyBoost - lengthPenalty;
+            (suggestion as any).rating = Math.min(100, Math.max(0, totalScore));
             (suggestion as any).fuzzyScore = fuzzyScore;
             (suggestion as any).isExactMatch = isExactMatch;
             
