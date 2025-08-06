@@ -469,6 +469,111 @@ describe('NLPCapitalizer', () => {
       
       expect(mockEditor.getLine(0)).toBe('Hello world');
     });
+
+    it('should not capitalize in open/incomplete fenced code blocks', () => {
+      mockEditor = createMockEditor([
+        '```javascript',
+        'function example() {',
+        '  console.log("hello world");',
+        '  return true;',
+        '}'
+      ]);
+      // Cursor is on line 2 within the open code block
+      const cursor: EditorPosition = { line: 2, ch: 16 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      // Should not capitalize "hello" in the console.log
+      expect(mockEditor.getLine(2)).toBe('  console.log("hello world");');
+    });
+
+    it('should not capitalize when pasting into incomplete code blocks', () => {
+      mockEditor = createMockEditor([
+        '```python',
+        'def my_function():',
+        '    print("hello world")',
+        '    if true:',
+        '        do_something()'
+      ]);
+      // Cursor is on line 4 within the incomplete code block
+      const cursor: EditorPosition = { line: 4, ch: 20 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      // Should not capitalize anything in the code block
+      expect(mockEditor.getLine(4)).toBe('        do_something()');
+    });
+
+    it('should not capitalize in incomplete inline code', () => {
+      mockEditor = createMockEditor(['Use `console.log("hello world")']);
+      const cursor: EditorPosition = { line: 0, ch: 18 };
+      
+      capitalizer.attemptCapitalization(mockEditor, cursor, ' ');
+      
+      // Should not capitalize "hello" in the incomplete inline code
+      expect(mockEditor.getLine(0)).toBe('Use `console.log("hello world")');
+    });
+
+    it('should handle nested code contexts correctly', () => {
+      mockEditor = createMockEditor([
+        'Here is some text with `inline code` and:',
+        '```javascript',
+        'const message = "hello world";',
+        'console.log(message);',
+        '```',
+        'this should not be affected by this test.'
+      ]);
+      
+      // Test within the fenced code block - should not capitalize
+      const cursor1: EditorPosition = { line: 2, ch: 18 };
+      capitalizer.attemptCapitalization(mockEditor, cursor1, ' ');
+      expect(mockEditor.getLine(2)).toBe('const message = "hello world";');
+      
+      // Test within the inline code - should not capitalize
+      mockEditor = createMockEditor(['Use `hello world` in your code']);
+      const cursor2: EditorPosition = { line: 0, ch: 11 };
+      capitalizer.attemptCapitalization(mockEditor, cursor2, ' ');
+      expect(mockEditor.getLine(0)).toBe('Use `hello world` in your code');
+    });
+
+    it('should not capitalize line starts in mermaid code blocks (simulating arrow key navigation)', () => {
+      mockEditor = createMockEditor([
+        '```mermaid',
+        'graph TB',
+        '    Request[User Request] --> CompanyCheck[Extract Company ID]',
+        '    CompanyCheck --> DataQuery[Query with Company Filter]',
+        '    DataQuery --> Results[Company-Scoped Results]'
+      ]);
+      
+      // Test at beginning of line 1 (graph TB) - simulates arrow key positioning
+      const cursor1: EditorPosition = { line: 1, ch: 5 }; // After "graph"
+      capitalizer.attemptCapitalization(mockEditor, cursor1, ' ');
+      expect(mockEditor.getLine(1)).toBe('graph TB'); // Should NOT become "Graph TB"
+      
+      // Test at beginning of line 2 - simulates arrow key positioning at start of line
+      const cursor2: EditorPosition = { line: 2, ch: 10 }; // After some indentation and text
+      capitalizer.attemptCapitalization(mockEditor, cursor2, ' ');
+      expect(mockEditor.getLine(2)).toBe('    Request[User Request] --> CompanyCheck[Extract Company ID]');
+    });
+
+    it('should not be triggered by arrow key navigation (no typing)', () => {
+      mockEditor = createMockEditor([
+        'this is a test',
+        'another line here'
+      ]);
+      
+      // This simulates what attemptCapitalization would receive when arrow keys are used
+      // (the cursor activity listener should now filter this out and never call attemptCapitalization)
+      // But we test the direct call with null trigger to ensure it doesn't cause issues
+      const cursor: EditorPosition = { line: 1, ch: 5 };
+      
+      // When justTypedChar is null (as it should be for arrow keys), no capitalization should occur
+      capitalizer.attemptCapitalization(mockEditor, cursor, null as any);
+      
+      // Text should remain unchanged
+      expect(mockEditor.getLine(0)).toBe('this is a test');
+      expect(mockEditor.getLine(1)).toBe('another line here');
+    });
   });
 
   describe('Word Boundary and Trigger Detection', () => {

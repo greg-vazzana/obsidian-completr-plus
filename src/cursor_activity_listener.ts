@@ -87,6 +87,9 @@ export class CursorActivityListener {
         // Debounced NLP capitalization (expensive operation)
         this.scheduleNLPCapitalization(editor, cursor, justTypedChar);
 
+        // Reset the document change flag after processing
+        this.cursorTriggeredByChange = false;
+
         this.lastCursorPosition = cursor;
         this.lastCursorLine = cursor.line;
     };
@@ -133,9 +136,15 @@ export class CursorActivityListener {
             return null;
         }
 
-        // Only handle same-line typing for now
+        // If the cursor moved to a different line, this was likely navigation (arrow keys)
+        // rather than typing, so don't treat it as a typed character
         if (cursor.line !== lastCursor.line) {
-            return '\n'; // Line break is also a word boundary
+            // Only consider it a typed newline if the document actually changed
+            // (this would be set by handleDocChange when text is inserted)
+            if (this.cursorTriggeredByChange) {
+                return '\n'; // Actual newline was typed
+            }
+            return null; // Just navigation - no character was typed
         }
         
         // Check if cursor moved forward by exactly 1 character

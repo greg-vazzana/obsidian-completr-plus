@@ -108,18 +108,7 @@ export default class NLPCapitalizer {
         const context = this.getOptimizedContext(editor, cursor);
         const analysis = this.getContextAnalysis(context, cursor);
 
-        // Skip if cursor is actually within a special context (not just if special patterns exist elsewhere)
-        if (this.config.respectSpecialContexts && analysis.shouldSkipCapitalization) {
-            // Only skip if the pattern that's blocking is not ellipses (ellipses shouldn't prevent all capitalization)
-            if (analysis.reason && analysis.reason !== 'ellipses') {
-                if (this.config.debug) {
-                    console.log('NLPCapitalizer: Skipping - in special context:', analysis.reason);
-                }
-                return;
-            }
-        }
-
-        // Try capitalization based on context
+        // Try capitalization based on context (context analysis will be checked in findCapitalizationOpportunities)
         this.performIntelligentCapitalization(editor, cursor, context, analysis, trigger);
     }
 
@@ -218,6 +207,17 @@ export default class NLPCapitalizer {
         trigger: string
     ): CapitalizationOpportunity[] {
         const opportunities: CapitalizationOpportunity[] = [];
+
+        // Skip all capitalization if we're in a special context (like code blocks)
+        if (this.config.respectSpecialContexts && analysis.shouldSkipCapitalization) {
+            // Only skip if the pattern that's blocking is not ellipses (ellipses shouldn't prevent all capitalization)
+            if (analysis.reason && analysis.reason !== 'ellipses') {
+                if (this.config.debug) {
+                    console.log('NLPCapitalizer: Skipping all capitalization - in special context:', analysis.reason);
+                }
+                return opportunities; // Return empty opportunities - don't capitalize anything
+            }
+        }
 
         // Line-level capitalization
         if (this.config.capitalizeLines) {

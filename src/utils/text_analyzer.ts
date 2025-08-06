@@ -23,6 +23,17 @@ export interface ContextAnalysis {
     nearbyBoundaries: SentenceBoundary[];
 }
 
+/**
+ * Result of code block context analysis
+ */
+export interface CodeBlockContext {
+    isInCodeBlock: boolean;
+    blockType: 'fencedCodeBlock' | 'inlineCode';
+    blockStart: number;
+    blockEnd?: number;
+    blockContent?: string;
+}
+
 export interface EntityAnalysis {
     people: Array<{ text: string; start: number; end: number }>;
     places: Array<{ text: string; start: number; end: number }>;
@@ -67,9 +78,22 @@ export class TextAnalyzer {
         const nearbyBoundaries = this.findSentenceBoundaries(text);
         
         // Check if cursor is within any pattern that should prevent capitalization
-        const blockingPattern = matchedPatterns.find(pattern => 
+        let blockingPattern = matchedPatterns.find(pattern => 
             cursorPosition >= pattern.start && cursorPosition <= pattern.end
         );
+
+        // Additional check for open/incomplete code blocks using stack-based detection
+        if (!blockingPattern) {
+            const codeBlockStatus = this.analyzeCodeBlockContext(text, cursorPosition);
+            if (codeBlockStatus.isInCodeBlock) {
+                blockingPattern = {
+                    type: codeBlockStatus.blockType,
+                    start: codeBlockStatus.blockStart,
+                    end: codeBlockStatus.blockEnd || text.length,
+                    text: codeBlockStatus.blockContent || ''
+                };
+            }
+        }
 
         return {
             shouldSkipCapitalization: !!blockingPattern,
@@ -87,6 +111,140 @@ export class TextAnalyzer {
         return patterns.some(pattern => 
             position >= pattern.start && position <= pattern.end
         );
+    }
+
+    /**
+     * Analyzes code block context using stack-based detection to handle open/incomplete blocks
+     */
+    static analyzeCodeBlockContext(text: string, position: number): CodeBlockContext {
+        const lines = text.split('\n');
+        let currentPos = 0;
+        let currentLine = 0;
+        
+        // Find which line the position is on
+        for (let i = 0; i < lines.length; i++) {
+            if (currentPos + lines[i].length >= position) {
+                currentLine = i;
+                break;
+            }
+            currentPos += lines[i].length + 1; // +1 for newline
+        }
+        
+        // Check for inline code first (higher priority and simpler)
+        const inlineCodeResult = this.checkInlineCodeContext(text, position);
+        if (inlineCodeResult.isInCodeBlock) {
+            return inlineCodeResult;
+        }
+        
+        // Check for fenced code blocks using stack-based approach
+        return this.checkFencedCodeBlockContext(lines, currentLine, position, currentPos);
+    }
+
+    /**
+     * Checks if position is within inline code (`code` or ``code``)
+     */
+    private static checkInlineCodeContext(text: string, position: number): CodeBlockContext {
+        // Look for inline code patterns around the position
+        const beforeText = text.substring(0, position);
+        const afterText = text.substring(position);
+        
+        // Find the last backtick(s) before position
+        const backticksBeforeMatch = beforeText.match(/`{1,2}(?:[^`])*$/);
+        if (!backticksBeforeMatch) {
+            return { isInCodeBlock: false, blockType: 'inlineCode', blockStart: -1 };
+        }
+        
+        const openingBackticks = backticksBeforeMatch[0].match(/^`{1,2}/)?.[0] || '';
+        const openingPos = beforeText.length - backticksBeforeMatch[0].length;
+        
+        // Look for matching closing backticks after position
+        const closingPattern = new RegExp(`^[^\\n]*?${openingBackticks}`);
+        const closingMatch = afterText.match(closingPattern);
+        
+        if (closingMatch) {
+            const closingPos = position + closingMatch[0].length;
+            return {
+                isInCodeBlock: true,
+                blockType: 'inlineCode',
+                blockStart: openingPos,
+                blockEnd: closingPos,
+                blockContent: text.substring(openingPos, closingPos)
+            };
+        }
+        
+        // If we found opening backticks but no closing ones, still consider it inline code
+        // This handles cases where someone is typing incomplete inline code
+        return {
+            isInCodeBlock: true,
+            blockType: 'inlineCode',
+            blockStart: openingPos,
+            blockContent: beforeText.substring(openingPos) + afterText
+        };
+    }
+
+    /**
+     * Checks if position is within a fenced code block using stack-based detection
+     */
+    private static checkFencedCodeBlockContext(lines: string[], currentLine: number, position: number, currentPos: number): CodeBlockContext {
+        let inCodeBlock = false;
+        let codeBlockStart = -1;
+        let codeBlockStartLine = -1;
+        
+        // Scan from beginning to current line to determine if we're in a code block
+        for (let i = 0; i <= currentLine; i++) {
+            const line = lines[i].trim();
+            
+            // Check for fenced code block markers (``` or ``` with language)
+            if (line.match(/^```/)) {
+                if (!inCodeBlock) {
+                    // Opening a code block
+                    inCodeBlock = true;
+                    codeBlockStart = this.getLineStartPosition(lines, i);
+                    codeBlockStartLine = i;
+                } else {
+                    // Closing a code block
+                    inCodeBlock = false;
+                    codeBlockStart = -1;
+                    codeBlockStartLine = -1;
+                }
+            }
+        }
+        
+        if (inCodeBlock && codeBlockStartLine !== -1) {
+            // Find the end of the code block (or end of text if incomplete)
+            let codeBlockEnd: number | undefined;
+            let blockContent = '';
+            
+            for (let i = codeBlockStartLine + 1; i < lines.length; i++) {
+                const line = lines[i];
+                if (line.trim().match(/^```$/)) {
+                    codeBlockEnd = this.getLineStartPosition(lines, i) + line.length;
+                    break;
+                }
+                blockContent += line + (i < lines.length - 1 ? '\n' : '');
+            }
+            
+            return {
+                isInCodeBlock: true,
+                blockType: 'fencedCodeBlock',
+                blockStart: codeBlockStart,
+                blockEnd: codeBlockEnd,
+                blockContent: blockContent
+            };
+        }
+        
+        return { isInCodeBlock: false, blockType: 'fencedCodeBlock', blockStart: -1 };
+    }
+
+    /**
+     * Helper to get the absolute position of the start of a line
+     */
+    private static getLineStartPosition(lines: string[], lineIndex: number): number {
+        let position = 0;
+        for (let i = 0; i < lineIndex; i++) {
+            position += lines[i].length + 1; // +1 for newline
+        }
+        return position;
     }
 
     /**
