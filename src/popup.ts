@@ -170,12 +170,13 @@ export default class SuggestionPopup extends EditorSuggest<Suggestion> {
 
         el.appendChild(content);
 
-        // Add the frequency badge if frequency > 1
-        if (value.frequency != null && value.frequency > 1) {
-            const frequencyBadge = el.doc.createElement("div");
-            frequencyBadge.addClass("completr-frequency-badge");
-            frequencyBadge.setText(value.frequency.toString());
-            el.appendChild(frequencyBadge);
+        // Add the score badge if score exists
+        const score = (value as any).rating;
+        if (score != null) {
+            const scoreBadge = el.doc.createElement("div");
+            scoreBadge.addClass("completr-frequency-badge");
+            scoreBadge.setText(Math.round(score).toString());
+            el.appendChild(scoreBadge);
         }
     }
 

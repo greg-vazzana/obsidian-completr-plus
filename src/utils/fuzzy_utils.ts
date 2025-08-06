@@ -2,6 +2,7 @@ import * as fuzzysort from 'fuzzysort';
 import { Suggestion, MatchType, HighlightRange } from '../provider/provider';
 import { Word } from '../db/sqlite_database_service';
 import { CompletrSettings, WordInsertionMode } from '../settings';
+import { WORD_FREQUENCY_RATING_MULTIPLIER } from '../constants';
 
 /**
  * Fuzzy matching utilities using fuzzysort library
@@ -59,7 +60,7 @@ export class FuzzyUtils {
             
             // Calculate combined rating: fuzzysort score + frequency boost - length penalty
             const fuzzyScore = result.score;
-            const frequencyBoost = word.frequency * 1000;
+            const frequencyBoost = word.frequency * WORD_FREQUENCY_RATING_MULTIPLIER;
             const lengthPenalty = word.word.length;
             
             // Store the combined rating for sorting

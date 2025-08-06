@@ -3,6 +3,7 @@ import { Suggestion, SuggestionContext, SuggestionProvider } from "./provider";
 import { Word } from "../db/sqlite_database_service";
 import { TextUtils } from "../utils/text_utils";
 import { FuzzyUtils } from "../utils/fuzzy_utils";
+import { WORD_FREQUENCY_RATING_MULTIPLIER } from "../constants";
 
 export abstract class DictionaryProvider implements SuggestionProvider {
     abstract readonly wordMap: Map<string, Map<string, Word>>;
@@ -88,7 +89,7 @@ export abstract class DictionaryProvider implements SuggestionProvider {
                             matchType: 'exact',
                             originalQueryCase: query // Track original query case
                         });
-                    (suggestion as any).rating = wordObj.frequency * 1000 - wordObj.word.length;
+                    (suggestion as any).rating = this.calculateExactMatchRating(wordObj.word, query, wordObj.frequency);
                     
                     return suggestion;
                 }
@@ -159,5 +160,109 @@ export abstract class DictionaryProvider implements SuggestionProvider {
         }
         
         return words;
+    }
+
+    /**
+     * Calculate a comprehensive rating for exact matches considering case, frequency, and word length
+     * @param word - The word being suggested
+     * @param query - The user's query
+     * @param frequency - How often this word appears
+     * @returns A numeric rating (higher is better)
+     */
+    private calculateExactMatchRating(word: string, query: string, frequency: number): number {
+        // Base scores
+        const frequencyScore = frequency * WORD_FREQUENCY_RATING_MULTIPLIER;
+        const lengthPenalty = word.length;
+        
+        // Case matching bonus (higher is better)
+        const caseBonus = this.calculateCaseMatchBonus(word, query);
+        
+        // Prefix completion bonus (how much of the word is completed)
+        const completionRatio = query.length / word.length;
+        const completionBonus = completionRatio * 500; // Up to 500 points for full matches
+        
+        // Word length efficiency (prefer shorter words, but not too aggressively)
+        const lengthEfficiency = Math.max(0, 50 - (word.length - query.length));
+        
+        return frequencyScore + caseBonus + completionBonus + lengthEfficiency - lengthPenalty;
+    }
+
+    /**
+     * Calculate bonus points for case matching quality
+     * @param word - The word being evaluated
+     * @param query - The user's query
+     * @returns Bonus points for case matching (0 or positive)
+     */
+    private calculateCaseMatchBonus(word: string, query: string): number {
+        let bonus = 0;
+        
+        // Perfect case match gets highest bonus
+        if (word.startsWith(query)) {
+            bonus += 300;
+        }
+        
+        // Analyze case pattern matching quality
+        for (let i = 0; i < Math.min(word.length, query.length); i++) {
+            const wordChar = word[i];
+            const queryChar = query[i];
+            
+            if (wordChar === queryChar) {
+                // Exact case match (including non-alphabetic)
+                bonus += 10;
+            } else if (wordChar.toLowerCase() === queryChar.toLowerCase()) {
+                // Case mismatch penalty
+                bonus -= 5;
+            }
+        }
+        
+        // Additional bonuses for common patterns
+        if (this.isCamelCaseMatch(word, query)) {
+            bonus += 100;
+        }
+        
+        if (this.isPascalCaseMatch(word, query)) {
+            bonus += 100;
+        }
+        
+        return bonus;
+    }
+
+    /**
+     * Check if query matches camelCase pattern (e.g., "getUserName" matches "gUN")
+     * @param word - The word to check
+     * @param query - The query pattern
+     * @returns True if it's a camelCase match
+     */
+    private isCamelCaseMatch(word: string, query: string): boolean {
+        // Check if query matches camelCase pattern
+        if (query.length < 2) return false;
+        
+        let queryIndex = 0;
+        for (let i = 0; i < word.length && queryIndex < query.length; i++) {
+            if (i === 0 || word[i] === word[i].toUpperCase()) {
+                if (word[i].toLowerCase() === query[queryIndex].toLowerCase()) {
+                    queryIndex++;
+                }
+            }
+        }
+        
+        return queryIndex === query.length;
+    }
+
+    /**
+     * Check if query matches PascalCase pattern (e.g., "GetUserName" matches "GUN")
+     * @param word - The word to check
+     * @param query - The query pattern
+     * @returns True if it's a PascalCase match
+     */
+    private isPascalCaseMatch(word: string, query: string): boolean {
+        // Must start with uppercase and have mixed case (not all caps)
+        if (word[0] !== word[0].toUpperCase()) return false;
+        
+        // Check if it's actually mixed case (has lowercase letters)
+        const hasLowercase = Array.from(word.slice(1)).some((char: string) => char !== char.toUpperCase());
+        if (!hasLowercase) return false;
+        
+        return this.isCamelCaseMatch(word, query);
     }
 }

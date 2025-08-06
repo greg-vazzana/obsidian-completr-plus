@@ -500,11 +500,13 @@ describe('SuggestionPopup', () => {
       );
     });
 
-    it('should render frequency badge when frequency > 1', () => {
+    it('should render score badge when score exists', () => {
       const suggestion = createMockSuggestion({
         displayName: 'Frequent',
         frequency: 5
       });
+      // Add rating/score to the suggestion
+      (suggestion as any).rating = 5234.7;
       const element = createMockElement();
       
       popup.renderSuggestion(suggestion, element);
@@ -512,14 +514,15 @@ describe('SuggestionPopup', () => {
       expect(element.children).toHaveLength(2); // content + badge
       const badge = element.children[1];
       expect(badge.addClass).toHaveBeenCalledWith('completr-frequency-badge');
-      expect(badge.setText).toHaveBeenCalledWith('5');
+      expect(badge.setText).toHaveBeenCalledWith('5235'); // rounded score
     });
 
-    it('should not render frequency badge when frequency <= 1', () => {
+    it('should not render score badge when no score exists', () => {
       const suggestion = createMockSuggestion({
-        displayName: 'Infrequent',
+        displayName: 'No Score',
         frequency: 1
       });
+      // No rating/score added to suggestion
       const element = createMockElement();
       
       popup.renderSuggestion(suggestion, element);
