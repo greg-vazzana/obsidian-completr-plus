@@ -514,7 +514,7 @@ describe('SuggestionPopup', () => {
       expect(element.children).toHaveLength(2); // content + badge
       const badge = element.children[1];
       expect(badge.addClass).toHaveBeenCalledWith('completr-frequency-badge');
-      expect(badge.setText).toHaveBeenCalledWith('78.5%'); // formatted as percentage
+      expect(badge.setText).toHaveBeenCalledWith('78.5'); // formatted as percentage
     });
 
     it('should not render score badge when no score exists', () => {
