@@ -86,8 +86,7 @@ export abstract class DictionaryProvider implements SuggestionProvider {
                         ? Suggestion.fromString(query + wordObj.word.substring(query.length))
                         : new Suggestion(wordObj.word, wordObj.word, undefined, undefined, {
                             frequency: wordObj.frequency > 1 ? wordObj.frequency : undefined,
-                            matchType: 'exact',
-                            originalQueryCase: query // Track original query case
+                            matchType: 'exact'
                         });
                     (suggestion as any).rating = this.calculateExactMatchRating(wordObj.word, query, wordObj.frequency);
                     

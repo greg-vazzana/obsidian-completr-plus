@@ -108,7 +108,7 @@ describe('DictionaryProvider', () => {
 
             const result = provider.getSuggestions(createContext('HE'), settings);
             expect(result).toHaveLength(1);
-            expect(result[0].getReplacementWithPreservedCase()).toBe('HELLO');
+            expect(result[0].replacement).toBe('Hello');
         });
 
         it('should append remaining letters in append mode', () => {

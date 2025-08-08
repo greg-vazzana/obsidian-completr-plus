@@ -54,8 +54,7 @@ export class FuzzyUtils {
             const suggestion = new Suggestion(suggestionText, suggestionText, undefined, undefined, {
                 frequency: word.frequency > 1 ? word.frequency : undefined,
                 matchType: matchType,
-                highlightRanges: highlightRanges,
-                originalQueryCase: query // Track original query case
+                highlightRanges: highlightRanges
             });
             
             // Calculate normalized rating (0-100) for fuzzy matches
